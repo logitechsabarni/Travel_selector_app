@@ -555,11 +555,10 @@ def transport_comparison_chart(options: list, pax: int):
         hovertemplate="Rating: %{y}<extra></extra>",
         yaxis="y2"
     ))
-    fig.update_layout(height=300,
+    fig.update_layout(**PLOTLY_LAYOUT, height=300,
         yaxis=dict(title=dict(text="Total Cost (₹)", font=dict(color="#7070a0")), tickfont=dict(color="#7070a0"), gridcolor="#2a2a3a"),
         yaxis2=dict(title=dict(text="Rating", font=dict(color="#ff6b9d")), tickfont=dict(color="#ff6b9d"), overlaying="y", side="right", range=[0, 5]),
-        barmode="group", 
-        legend=dict(orientation="h", y=-0.2))
+        barmode="group", legend=dict(orientation="h", y=-0.2))
     return fig
 
 
