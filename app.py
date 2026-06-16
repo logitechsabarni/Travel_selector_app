@@ -582,15 +582,14 @@ def weather_forecast_chart(forecast: list):
         marker=dict(size=8, color="#118ab2"),
         fillcolor="rgba(17,138,178,0.1)"
     ))
-   fig.update_layout(**PLOTLY_LAYOUT)
-
-   fig.update_layout(
-       height=200,
-       yaxis=dict(gridcolor="#2a2a3a", ticksuffix="°C"),
-       xaxis=dict(gridcolor="#1e1e2e"),
-       legend=dict(orientation="h", y=-0.3),
-   )
-   return fig
+    fig.update_layout(
+        **PLOTLY_LAYOUT,
+        height=200,
+        yaxis=dict(gridcolor="#2a2a3a", ticksuffix="°C"),
+        xaxis=dict(gridcolor="#1e1e2e"),
+        legend=dict(orientation="h", y=-0.3),
+    )
+    return fig
 
 
 def rating_radar_chart(options: list):
@@ -951,7 +950,7 @@ elif step == 3:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# STEP 4 — HOTELS + BUDGET BREAKDOWN (NEW STEP)
+# STEP 4 — HOTELS + BUDGET BREAKDOWN
 # ═══════════════════════════════════════════════════════════════════════════════
 elif step == 4:
     analysis = st.session_state.ai_analysis
@@ -994,14 +993,12 @@ elif step == 4:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">💰 AI Budget Estimator</div>', unsafe_allow_html=True)
 
-        # Generate budget if not done
         if not st.session_state.budget_breakdown:
             with st.spinner("Calculating budget…"):
                 st.session_state.budget_breakdown = generate_budget_breakdown_with_ai(analysis, chosen)
 
         breakdown = st.session_state.budget_breakdown
 
-        # Interactive adjusters
         st.markdown('<div style="font-size:0.8rem;color:#7070a0;margin-bottom:0.8rem;">Adjust your spending estimates:</div>', unsafe_allow_html=True)
 
         adjusted = {}
@@ -1012,7 +1009,6 @@ elif step == 4:
         total = sum(adjusted.values())
         per_person = total // pax if pax else total
 
-        # Budget stats row
         b_cols = st.columns(3)
         with b_cols[0]:
             st.markdown(f'<div class="budget-stat"><div class="budget-val" style="color:#00d4aa;">₹{total:,}</div><div class="budget-lbl">Total Budget</div></div>', unsafe_allow_html=True)
@@ -1023,11 +1019,8 @@ elif step == 4:
             st.markdown(f'<div class="budget-stat"><div class="budget-val" style="color:#ff6b9d;">₹{daily:,}</div><div class="budget-lbl">Per Day</div></div>', unsafe_allow_html=True)
 
         st.markdown("<br>", unsafe_allow_html=True)
-
-        # Pie chart
         st.plotly_chart(budget_pie_chart(adjusted), use_container_width=True, config={"displayModeBar": False})
 
-        # Savings tips
         st.markdown('<div style="font-size:0.8rem;font-family:Space Grotesk;color:#7070a0;text-transform:uppercase;letter-spacing:0.08em;margin:0.8rem 0 0.5rem;">💡 Smart Savings Tips</div>', unsafe_allow_html=True)
         tips_list = [
             f"Book train tickets 60-90 days in advance to save up to 20%",
@@ -1092,7 +1085,6 @@ elif step == 5:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.markdown(f'<div class="section-title">📋 Your {days}-Day Itinerary — {analysis.get("destination","")}</div>', unsafe_allow_html=True)
 
-    # Transport summary bar
     if chosen:
         icon = {"train": "🚂", "bus": "🚌", "flight": "✈️"}.get(chosen.get("type", ""), "🚀")
         st.markdown(f"""
@@ -1108,7 +1100,6 @@ elif step == 5:
   </div>
 </div>""", unsafe_allow_html=True)
 
-    # Day blocks
     for day in itinerary:
         st.markdown(f"""
 <div class="day-block">
@@ -1126,7 +1117,6 @@ elif step == 5:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # Budget summary strip
     if st.session_state.budget_breakdown:
         total_budget = sum(st.session_state.budget_breakdown.values())
         st.markdown(f"""
@@ -1198,7 +1188,6 @@ elif step == 6:
   <div style="font-size:0.8rem;color:#7070a0;">All-in estimate · {analysis.get("budget","medium")} budget</div>
 </div>""", unsafe_allow_html=True)
 
-    # Final budget pie
     if breakdown:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
