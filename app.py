@@ -563,35 +563,50 @@ def transport_comparison_chart(options: list, pax: int):
     return fig
 
 
-def weather_forecast_chart(forecast: list):
-    days = [f.get("day", "") for f in forecast]
-    highs = [f.get("high", 0) for f in forecast]
-    lows = [f.get("low", 0) for f in forecast]
-
+def weather_forecast_chart(forecast):
     fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=days, y=highs, name="High °C",
-        fill=None, mode="lines+markers",
-        line=dict(color="#ff6b35", width=2.5),
-        marker=dict(size=8, color="#ff6b35"),
-    ))
-    fig.add_trace(go.Scatter(
-        x=days, y=lows, name="Low °C",
-        fill="tonexty", mode="lines+markers",
-        line=dict(color="#118ab2", width=2.5),
-        marker=dict(size=8, color="#118ab2"),
-        fillcolor="rgba(17,138,178,0.1)"
-    ))
-    fig.update_layout(
-        **PLOTLY_LAYOUT,
-        height=200,
-        yaxis=dict(gridcolor="#2a2a3a", ticksuffix="°C"),
-        xaxis=dict(gridcolor="#1e1e2e"),
-        legend=dict(orientation="h", y=-0.3),
+
+    fig.add_trace(
+        go.Scatter(
+            x=forecast["date"],
+            y=forecast["temp_max"],
+            mode="lines+markers",
+            name="Max Temp"
+        )
     )
+
+    fig.add_trace(
+        go.Scatter(
+            x=forecast["date"],
+            y=forecast["temp_min"],
+            mode="lines+markers",
+            name="Min Temp"
+        )
+    )
+
+    # Apply base layout first
+    fig.update_layout(**PLOTLY_LAYOUT)
+
+    # Update axes separately
+    fig.update_yaxes(
+        gridcolor="#2a2a3a",
+        ticksuffix="°C"
+    )
+
+    fig.update_xaxes(
+        gridcolor="#1e1e2e"
+    )
+
+    # Final layout settings
+    fig.update_layout(
+        height=200,
+        legend=dict(
+            orientation="h",
+            y=-0.3
+        )
+    )
+
     return fig
-
-
 def rating_radar_chart(options: list):
     if not options:
         return None
