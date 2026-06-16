@@ -1,3 +1,4 @@
+
 import streamlit as st
 import json
 import re
@@ -273,141 +274,193 @@ def _llm_json(system_msg, user_content):
         return None
 
 
-def analyze_tour_with_ai(description: str):
-    result = _llm_json(
-        """You are VoyageAI, an expert Indian travel planner. Analyze the user's travel plan and return ONLY valid JSON:
-{
-  "origin": "city", "destination": "city",
-  "travel_date": "YYYY-MM-DD", "return_date": "YYYY-MM-DD or null",
-  "duration_days": number, "travelers": number,
-  "budget": "low/medium/high",
-  "interests": ["list"],
-  "summary": "2-3 sentence friendly summary",
-  "tips": ["tip1","tip2","tip3"],
-  "season": "summer/monsoon/winter/spring",
-  "trip_type": "leisure/adventure/cultural/family/solo/romantic"
-}
-Return ONLY the JSON.""",
-        description
-    )
-    return result or _mock_analysis(description)
+# ─── MASTER AI INTELLIGENCE ENGINE ────────────────────────────────────────────
+# Single comprehensive Gemini call for all destination-specific data.
+# Replaces scattered mock functions with one accurate, verified AI response.
 
+MASTER_SYSTEM_PROMPT = """You are VoyageAI, an advanced AI travel planner and authoritative local destination expert for Indian travel.
 
-def fetch_transport_with_ai(analysis: dict):
-    result = _llm_json(
-        """You are a transport booking AI for Indian travel. Generate realistic transport options as a JSON array (4-6 items):
-[{
-  "id":"unique_id","type":"train/bus/flight","name":"service name","number":"number",
-  "departure":"HH:MM","arrival":"HH:MM","duration":"Xh Ym","price_per_person":number,
-  "class":"class name","seats_available":number,"amenities":["list"],"operator":"name","rating":4.1
-}]
-Return ONLY valid JSON array.""",
-        analysis
-    )
-    return result or _mock_transport(analysis)
+CRITICAL ACCURACY RULES — READ BEFORE GENERATING ANYTHING:
+1. Every attraction, restaurant, hotel area, and experience MUST physically exist in the DESTINATION city only.
+2. Before including any place, internally verify: "Is this geographically located in the destination city?"
+3. NEVER invent fictional places, mix up cities, or use placeholder names like "Old City Heritage Walk" or "Spice Plantation Tour" generically.
+4. Base recommendations on real, well-known locations that a local would recognise.
+5. Consider the travel season from the dates when giving weather and clothing advice.
+6. For Indian cities: use correct local knowledge — e.g. Chennai → Marina Beach, Kapaleeshwarar Temple, Mylapore, Besant Nagar, T Nagar; Goa → Calangute, Anjuna, Old Goa, Panjim; Jaipur → Hawa Mahal, Amber Fort, Johri Bazaar etc.
+7. Return ONLY valid JSON — no preamble, no markdown fences, no extra text.
 
+You will return a single comprehensive JSON object covering the entire trip intelligence."""
 
-def generate_itinerary_with_ai(analysis: dict, transport: dict):
-    result = _llm_json(
-        """You are an expert Indian travel itinerary planner. Create a day-by-day itinerary as a JSON array:
-[{"day":1,"title":"Day theme","activities":[{"time":"HH:MM","activity":"description","emoji":"emoji"}]}]
-Keep activities realistic and location-specific. Return ONLY valid JSON array.""",
-        {"trip": analysis, "transport": transport}
-    )
-    return result or _mock_itinerary(analysis)
+def build_master_prompt(description, analysis_only=False):
+    """Build the master prompt using trip description."""
+    return f"""Analyze this Indian travel plan and return accurate, destination-specific JSON:
 
+User Input: "{description}"
 
-def generate_hotels_with_ai(analysis: dict):
-    result = _llm_json(
-        """You are a hotel recommendation AI for Indian travel. Generate 4-6 hotel options as a JSON array:
-[{
-  "id":"h1","name":"Hotel Name","stars":4,"price_per_night":2500,
-  "locality":"area name","rating":4.2,"review_count":1240,
-  "amenities":["WiFi","Pool","AC"],"type":"budget/mid-range/luxury",
-  "highlights":"one line selling point"
-}]
-Return ONLY valid JSON array.""",
-        analysis
-    )
-    return result or _mock_hotels(analysis)
-
-
-def generate_packing_list_with_ai(analysis: dict):
-    result = _llm_json(
-        """You are a travel packing expert. Generate a context-aware packing list as JSON:
-{
-  "Essentials": ["item1","item2"],
-  "Clothing": ["item1","item2"],
-  "Toiletries": ["item1","item2"],
-  "Electronics": ["item1","item2"],
-  "Documents": ["item1","item2"],
-  "Destination-Specific": ["item1","item2"]
-}
-Return ONLY valid JSON.""",
-        analysis
-    )
-    return result or _mock_packing(analysis)
-
-
-def generate_budget_breakdown_with_ai(analysis: dict, transport: dict):
-    pax = analysis.get("travelers", 1)
-    days = analysis.get("duration_days", 5)
-    transport_cost = transport.get("price_per_person", 0) * pax
-    result = _llm_json(
-        f"""You are a travel budget estimator. Given a trip, estimate the total budget breakdown in INR as JSON:
+Return this EXACT JSON structure (all fields required):
 {{
-  "Transport": {transport_cost},
-  "Accommodation": number,
-  "Food & Dining": number,
-  "Sightseeing": number,
-  "Shopping": number,
-  "Miscellaneous": number
-}}
-Base it on {pax} traveler(s), {days} days, {analysis.get("budget","medium")} budget level.
-Transport is already set to {transport_cost}. Return ONLY valid JSON.""",
-        analysis
-    )
-    return result or _mock_budget(analysis, transport_cost)
-
-
-def generate_attractions_with_ai(analysis: dict):
-    result = _llm_json(
-        """Generate 6-8 must-visit attractions for the destination as a JSON array:
-[{
-  "name":"Attraction Name","emoji":"🏛️","type":"Heritage/Nature/Food/Adventure/Shopping/Beach",
-  "distance_km":5.2,"rating":4.5,"entry_fee":"Free/₹200","timing":"9 AM–5 PM",
-  "tip":"insider tip in one sentence"
-}]
-Return ONLY valid JSON array.""",
-        analysis
-    )
-    return result or _mock_attractions(analysis)
-
-
-def generate_weather_with_ai(analysis: dict):
-    result = _llm_json(
-        """Generate mock realistic weather data for the destination and travel season as JSON:
-{
-  "emoji":"☀️","temp_high":32,"temp_low":24,"condition":"Sunny with light breeze",
-  "humidity":65,"rain_chance":10,"uv_index":7,
-  "advice":"What to wear/carry","forecast":[
-    {"day":"Mon","emoji":"☀️","high":32,"low":24},
-    {"day":"Tue","emoji":"⛅","high":30,"low":23},
-    {"day":"Wed","emoji":"🌧️","high":27,"low":22},
-    {"day":"Thu","emoji":"☀️","high":33,"low":25},
-    {"day":"Fri","emoji":"⛅","high":31,"low":24}
+  "trip_summary": {{
+    "origin": "city name",
+    "destination": "city name",
+    "travel_date": "YYYY-MM-DD",
+    "return_date": "YYYY-MM-DD or null",
+    "duration_days": 5,
+    "travelers": 2,
+    "budget": "low/medium/high",
+    "interests": ["interest1", "interest2"],
+    "season": "summer/monsoon/winter/spring",
+    "trip_type": "leisure/adventure/cultural/family/solo/romantic",
+    "description": "2-3 sentence friendly trip summary",
+    "travel_advice": ["tip1", "tip2", "tip3"]
+  }},
+  "weather": {{
+    "emoji": "☀️",
+    "temp_high": 32,
+    "temp_low": 24,
+    "condition": "Sunny with light breeze",
+    "humidity": 65,
+    "rain_chance": 10,
+    "uv_index": 7,
+    "advice": "What to wear and carry advice specific to destination and season",
+    "forecast": [
+      {{"day": "Mon", "emoji": "☀️", "high": 32, "low": 24}},
+      {{"day": "Tue", "emoji": "⛅", "high": 30, "low": 23}},
+      {{"day": "Wed", "emoji": "🌧️", "high": 27, "low": 22}},
+      {{"day": "Thu", "emoji": "☀️", "high": 33, "low": 25}},
+      {{"day": "Fri", "emoji": "⛅", "high": 31, "low": 24}}
+    ]
+  }},
+  "attractions": [
+    {{
+      "name": "REAL place name that actually exists in destination city",
+      "emoji": "🏛️",
+      "type": "Heritage/Nature/Food/Adventure/Shopping/Beach/Temple/Museum",
+      "distance_km": 2.5,
+      "rating": 4.6,
+      "entry_fee": "Free or ₹200",
+      "timing": "6 AM–8 PM",
+      "tip": "Specific insider tip a local would give"
+    }}
+  ],
+  "transport_options": [
+    {{
+      "id": "t1",
+      "type": "train/bus/flight",
+      "name": "Real service name (e.g. Chennai Express, IndiGo)",
+      "number": "Train/flight number",
+      "departure": "HH:MM",
+      "arrival": "HH:MM",
+      "duration": "Xh Ym",
+      "price_per_person": 1500,
+      "class": "3A AC / Sleeper / Economy",
+      "seats_available": 20,
+      "amenities": ["amenity1", "amenity2"],
+      "operator": "Indian Railways / IndiGo / VRL etc.",
+      "rating": 4.2
+    }}
+  ],
+  "hotels": [
+    {{
+      "id": "h1",
+      "name": "Real hotel name or realistic name for destination locality",
+      "stars": 4,
+      "price_per_night": 3500,
+      "locality": "Real neighbourhood in destination city",
+      "rating": 4.3,
+      "review_count": 1240,
+      "amenities": ["WiFi", "Pool", "AC"],
+      "type": "budget/mid-range/luxury",
+      "highlights": "What makes it special"
+    }}
+  ],
+  "itinerary": [
+    {{
+      "day": 1,
+      "title": "Day theme",
+      "activities": [
+        {{"time": "09:00", "activity": "Visit specific real place in destination", "emoji": "🏛️"}}
+      ]
+    }}
+  ],
+  "packing_list": {{
+    "Essentials": ["Valid ID / Aadhaar Card", "Travel tickets & bookings", "Cash & UPI-linked card"],
+    "Clothing": ["Destination and season appropriate items"],
+    "Toiletries": ["Sunscreen SPF 50+", "items relevant to destination weather"],
+    "Electronics": ["Phone + charger", "Power bank"],
+    "Documents": ["E-tickets downloaded offline", "Hotel bookings printout"],
+    "Destination-Specific": ["Items specific to the destination city and trip type"]
+  }},
+  "budget_breakdown": {{
+    "Transport": 3000,
+    "Accommodation": 8000,
+    "Food & Dining": 4000,
+    "Sightseeing": 2500,
+    "Shopping": 2000,
+    "Miscellaneous": 1500
+  }},
+  "savings_tips": [
+    "Specific money-saving tip for this destination",
+    "Another practical tip",
+    "Third actionable tip",
+    "Fourth tip"
   ]
-}
-Return ONLY valid JSON.""",
-        analysis
-    )
-    return result or _mock_weather(analysis)
+}}
+
+IMPORTANT: Generate 6-8 attractions, 5-6 transport options (mix of train/bus/flight), 4 hotels, and a day-by-day itinerary for the full trip duration.
+All places MUST be real locations in the destination city. Budget numbers should reflect actual costs for {description}."""
 
 
-# ─── MOCK DATA ────────────────────────────────────────────────────────────────
+def analyze_trip_master(description: str):
+    """
+    Single master AI call that returns all trip data at once.
+    Falls back gracefully to mock data if no API key or call fails.
+    """
+    llm = get_llm()
+    if not llm:
+        return None  # Will trigger mock fallback
+
+    system_msg = MASTER_SYSTEM_PROMPT
+    user_msg = build_master_prompt(description)
+
+    prompt = ChatPromptTemplate.from_messages([
+        SystemMessage(content=system_msg),
+        HumanMessage(content=user_msg)
+    ])
+    try:
+        result = (prompt | llm).invoke({})
+        text = re.sub(r"```json|```", "", result.content.strip()).strip()
+        data = json.loads(text)
+        return data
+    except Exception as e:
+        st.warning(f"AI call failed, using demo data. Error: {str(e)[:80]}")
+        return None
+
+
+def extract_analysis(master_data: dict) -> dict:
+    """Extract the trip_summary portion as the 'analysis' object used throughout."""
+    if not master_data:
+        return {}
+    s = master_data.get("trip_summary", {})
+    return {
+        "origin": s.get("origin", ""),
+        "destination": s.get("destination", ""),
+        "travel_date": s.get("travel_date", ""),
+        "return_date": s.get("return_date", None),
+        "duration_days": s.get("duration_days", 5),
+        "travelers": s.get("travelers", 2),
+        "budget": s.get("budget", "medium"),
+        "interests": s.get("interests", []),
+        "season": s.get("season", "winter"),
+        "trip_type": s.get("trip_type", "leisure"),
+        "summary": s.get("description", ""),
+        "tips": s.get("travel_advice", []),
+    }
+
+
+# ─── MOCK DATA (fallback when no API key) ─────────────────────────────────────
 def _mock_analysis(desc):
     words = desc.lower()
-    cities = ["Mumbai", "Delhi", "Kolkata", "Bengaluru", "Chennai", "Hyderabad", "Jaipur", "Goa", "Kerala"]
+    cities = ["Mumbai", "Delhi", "Kolkata", "Bengaluru", "Chennai", "Hyderabad", "Jaipur", "Goa", "Kerala", "Manali", "Shimla", "Varanasi", "Agra", "Pune"]
     dest = next((c for c in cities if c.lower() in words), "Goa")
     return {
         "origin": "Kolkata", "destination": dest,
@@ -421,10 +474,96 @@ def _mock_analysis(desc):
     }
 
 
+CITY_MOCK_DATA = {
+    "Goa": {
+        "attractions": [
+            {"name": "Baga Beach", "emoji": "🏖️", "type": "Beach", "distance_km": 15.0, "rating": 4.5, "entry_fee": "Free", "timing": "24 hours", "tip": "Visit early morning for a peaceful walk before the crowds arrive"},
+            {"name": "Basilica of Bom Jesus", "emoji": "⛪", "type": "Heritage", "distance_km": 9.0, "rating": 4.7, "entry_fee": "Free", "timing": "9 AM–6:30 PM", "tip": "UNESCO World Heritage Site — visit on weekday mornings to avoid tour groups"},
+            {"name": "Anjuna Flea Market", "emoji": "🛍️", "type": "Shopping", "distance_km": 18.0, "rating": 4.2, "entry_fee": "Free", "timing": "Wed 8 AM–6 PM", "tip": "Wednesday only — bargain hard, first price is always inflated 2x"},
+            {"name": "Dudhsagar Falls", "emoji": "💦", "type": "Nature", "distance_km": 60.0, "rating": 4.6, "entry_fee": "₹400 (Jeep)", "timing": "Oct–May, 7 AM–6 PM", "tip": "Book a jeep safari from Mollem — accessible only by 4WD after the trek point"},
+            {"name": "Panjim Latin Quarter (Fontainhas)", "emoji": "🏘️", "type": "Heritage", "distance_km": 1.0, "rating": 4.4, "entry_fee": "Free", "timing": "All day", "tip": "Walk the narrow lanes at dusk — the colonial architecture glows beautifully"},
+            {"name": "Calangute Beach", "emoji": "🌊", "type": "Beach", "distance_km": 16.0, "rating": 4.3, "entry_fee": "Free", "timing": "24 hours", "tip": "Water sports hub — parasailing + banana boat combo available at fixed government rates"},
+            {"name": "Spice Plantation (Tropical Spice Farm)", "emoji": "🌿", "type": "Nature", "distance_km": 20.0, "rating": 4.3, "entry_fee": "₹400", "timing": "9 AM–4 PM", "tip": "Includes a traditional Goan lunch — book morning slot for guided spice walk"},
+            {"name": "Old Goa Churches Complex", "emoji": "🕌", "type": "Heritage", "distance_km": 9.5, "rating": 4.6, "entry_fee": "Free", "timing": "8 AM–6 PM", "tip": "Visit Se Cathedral and Bom Jesus together — they're just 5 min apart on foot"},
+        ],
+        "hotels": [
+            {"id":"h1","name":"Taj Holiday Village Resort","stars":5,"price_per_night":15000,"locality":"Candolim","rating":4.8,"review_count":3200,"amenities":["Pool","Spa","Beach Access","Restaurant","WiFi"],"type":"luxury","highlights":"Private beach access with Goan heritage cottages"},
+            {"id":"h2","name":"Casa de Goa Boutique Resort","stars":4,"price_per_night":5500,"locality":"Calangute","rating":4.4,"review_count":1820,"amenities":["Pool","WiFi","Breakfast Included","AC","Restaurant"],"type":"mid-range","highlights":"Portuguese colonial architecture, 5 min walk to beach"},
+            {"id":"h3","name":"Hotel Mandovi","stars":3,"price_per_night":2800,"locality":"Panjim City Centre","rating":4.1,"review_count":987,"amenities":["WiFi","AC","Hot Water","TV","Restaurant"],"type":"mid-range","highlights":"Historic Panjim landmark, walking distance to Fontainhas"},
+            {"id":"h4","name":"Zostel Goa","stars":2,"price_per_night":700,"locality":"Anjuna","rating":4.3,"review_count":2100,"amenities":["Free WiFi","Common Kitchen","Pool","Lockers","Social Events"],"type":"budget","highlights":"Best backpacker hostel in Goa — vibrant social scene near Anjuna"},
+        ]
+    },
+    "Chennai": {
+        "attractions": [
+            {"name": "Marina Beach", "emoji": "🏖️", "type": "Beach", "distance_km": 3.0, "rating": 4.5, "entry_fee": "Free", "timing": "24 hours", "tip": "World's second longest urban beach — visit at sunrise for stunning light and fewer crowds"},
+            {"name": "Kapaleeshwarar Temple", "emoji": "🛕", "type": "Temple", "distance_km": 5.0, "rating": 4.7, "entry_fee": "Free", "timing": "5 AM–12 PM, 4–10 PM", "tip": "Remove footwear at the entrance and dress conservatively — the gopuram is best photographed in morning light"},
+            {"name": "Mylapore Heritage Walk", "emoji": "🏛️", "type": "Heritage", "distance_km": 4.5, "rating": 4.4, "entry_fee": "Free", "timing": "All day", "tip": "Explore the narrow streets around the temple tank — the oldest urban neighbourhood in Chennai"},
+            {"name": "Fort St. George", "emoji": "🏰", "type": "Heritage", "distance_km": 2.0, "rating": 4.3, "entry_fee": "₹25", "timing": "9 AM–5 PM (closed Sun)", "tip": "Home to the oldest English church in India — the museum inside is free and underrated"},
+            {"name": "Government Museum Chennai", "emoji": "🏛️", "type": "Museum", "distance_km": 6.0, "rating": 4.2, "entry_fee": "₹15", "timing": "9:30 AM–5 PM (closed Wed)", "tip": "Second oldest museum in India — the bronze gallery with Chola sculptures is unmissable"},
+            {"name": "San Thome Basilica", "emoji": "⛪", "type": "Heritage", "distance_km": 4.0, "rating": 4.6, "entry_fee": "Free", "timing": "6 AM–8 PM", "tip": "Built over the tomb of St. Thomas the Apostle — peaceful inside even during peak hours"},
+            {"name": "Bessant Nagar (Elliot's Beach)", "emoji": "🌅", "type": "Beach", "distance_km": 7.0, "rating": 4.4, "entry_fee": "Free", "timing": "24 hours", "tip": "Far quieter than Marina — locals call it Bessy Beach; great for evening walks and bhajji stalls"},
+            {"name": "Mahabalipuram (day trip)", "emoji": "🗿", "type": "Heritage", "distance_km": 58.0, "rating": 4.8, "entry_fee": "₹40", "timing": "6 AM–6 PM", "tip": "1 hour south of Chennai — the Shore Temple at sunrise is one of India's most beautiful sights"},
+        ],
+        "hotels": [
+            {"id":"h1","name":"ITC Grand Chola","stars":5,"price_per_night":18000,"locality":"Guindy","rating":4.9,"review_count":4100,"amenities":["Pool","Spa","Multiple Restaurants","WiFi","Gym"],"type":"luxury","highlights":"South India's grandest hotel — Chola empire architecture with modern luxury"},
+            {"id":"h2","name":"Radha Regent","stars":4,"price_per_night":5000,"locality":"Arumbakkam","rating":4.3,"review_count":1560,"amenities":["Pool","WiFi","Restaurant","AC","Gym"],"type":"mid-range","highlights":"Great value 4-star with rooftop pool, near Metro access"},
+            {"id":"h3","name":"Hanu Reddy Residences","stars":3,"price_per_night":2500,"locality":"Mylapore","rating":4.2,"review_count":820,"amenities":["WiFi","AC","Hot Water","Kitchenette"],"type":"mid-range","highlights":"Charming heritage stay in the heart of old Chennai, near Kapaleeshwarar"},
+            {"id":"h4","name":"Zostel Chennai","stars":2,"price_per_night":600,"locality":"Egmore","rating":4.1,"review_count":940,"amenities":["Free WiFi","Common Kitchen","Lockers","AC Dorms"],"type":"budget","highlights":"Sociable hostel near Chennai Central railway station"},
+        ]
+    },
+    "Jaipur": {
+        "attractions": [
+            {"name": "Amber Fort (Amer Fort)", "emoji": "🏰", "type": "Heritage", "distance_km": 11.0, "rating": 4.7, "entry_fee": "₹200 (Indian)", "timing": "8 AM–5:30 PM", "tip": "Take the elephant ride at 8 AM or walk up Suraj Pol — buy combo ticket with Jaigarh Fort"},
+            {"name": "Hawa Mahal", "emoji": "🏯", "type": "Heritage", "distance_km": 2.0, "rating": 4.5, "entry_fee": "₹50 (Indian)", "timing": "9 AM–4:30 PM", "tip": "Best photographed from the tea shop across the street — go at 9 AM for soft morning light"},
+            {"name": "City Palace", "emoji": "👑", "type": "Heritage", "distance_km": 1.5, "rating": 4.6, "entry_fee": "₹200", "timing": "9:30 AM–5 PM", "tip": "Still home to the royal family — book the museum + Mubarak Mahal combo ticket"},
+            {"name": "Johri Bazaar", "emoji": "💎", "type": "Shopping", "distance_km": 2.5, "rating": 4.4, "entry_fee": "Free", "timing": "10 AM–9 PM (closed Tue)", "tip": "Jaipur is India's gem capital — best for precious stones, silver jewellery, and blue pottery"},
+            {"name": "Jantar Mantar", "emoji": "🔭", "type": "Heritage", "distance_km": 1.8, "rating": 4.5, "entry_fee": "₹50 (Indian)", "timing": "9 AM–4:30 PM", "tip": "UNESCO World Heritage site — the Samrat Yantra sundial is accurate to within 2 seconds"},
+            {"name": "Nahargarh Fort", "emoji": "🌄", "type": "Heritage", "distance_km": 15.0, "rating": 4.4, "entry_fee": "₹50", "timing": "10 AM–5:30 PM", "tip": "Best sunset viewpoint over the Pink City — the rooftop café serves amazing thalis"},
+            {"name": "Albert Hall Museum", "emoji": "🏛️", "type": "Museum", "distance_km": 3.0, "rating": 4.3, "entry_fee": "₹40 (Indian)", "timing": "9 AM–5 PM, 7–10 PM", "tip": "Ram Niwas Garden surrounds it — visit in the evening when it's beautifully lit up"},
+            {"name": "Chokhi Dhani Village", "emoji": "🎭", "type": "Culture", "distance_km": 22.0, "rating": 4.5, "entry_fee": "₹900 (incl. dinner)", "timing": "5–11 PM", "tip": "Authentic Rajasthani village experience with folk dances, camel rides, and traditional thali dinner"},
+        ],
+        "hotels": [
+            {"id":"h1","name":"Rambagh Palace","stars":5,"price_per_night":25000,"locality":"Bhawani Singh Road","rating":4.9,"review_count":3800,"amenities":["Pool","Spa","Polo Ground","Multiple Restaurants","WiFi"],"type":"luxury","highlights":"Former royal residence of the Maharaja — the most iconic palace hotel in Rajasthan"},
+            {"id":"h2","name":"Samode Haveli","stars":4,"price_per_night":7000,"locality":"Old City","rating":4.6,"review_count":1240,"amenities":["Courtyard Pool","Heritage Decor","WiFi","Restaurant","AC"],"type":"mid-range","highlights":"Authentic 475-year-old haveli in the walled city — stunning Rajput architecture"},
+            {"id":"h3","name":"Hotel Pearl Palace","stars":3,"price_per_night":1800,"locality":"Hathroi Fort Area","rating":4.5,"review_count":3200,"amenities":["Rooftop Restaurant","WiFi","AC","Travel Desk"],"type":"mid-range","highlights":"Legendary budget-mid hotel — family-run, famous rooftop restaurant with city views"},
+            {"id":"h4","name":"Zostel Jaipur","stars":2,"price_per_night":500,"locality":"Moti Dungri","rating":4.2,"review_count":1800,"amenities":["Free WiFi","Common Kitchen","Bike Rentals","Events"],"type":"budget","highlights":"Best located hostel in Jaipur — within walking distance of Hawa Mahal"},
+        ]
+    },
+}
+
+def _get_city_attractions(dest):
+    """Get city-specific attractions or generate generic ones."""
+    city_data = CITY_MOCK_DATA.get(dest, {})
+    if city_data:
+        return city_data.get("attractions", [])
+    # Generic but clearly labeled as placeholder
+    return [
+        {"name": f"{dest} Main Temple", "emoji": "🛕", "type": "Temple", "distance_km": 2.0, "rating": 4.5, "entry_fee": "Free", "timing": "6 AM–8 PM", "tip": f"Most visited temple in {dest} — check festival calendar before visiting"},
+        {"name": f"{dest} Heritage Museum", "emoji": "🏛️", "type": "Museum", "distance_km": 3.5, "rating": 4.2, "entry_fee": "₹50", "timing": "9 AM–5 PM", "tip": "Rich collection of local history and art"},
+        {"name": f"{dest} Central Market", "emoji": "🛍️", "type": "Shopping", "distance_km": 1.0, "rating": 4.3, "entry_fee": "Free", "timing": "10 AM–9 PM", "tip": "Best place for local handicrafts and street food"},
+        {"name": f"{dest} Lake/Waterfront", "emoji": "🌊", "type": "Nature", "distance_km": 5.0, "rating": 4.4, "entry_fee": "Free", "timing": "Sunrise–Sunset", "tip": "Beautiful at golden hour — rent a boat for ₹100"},
+        {"name": f"{dest} Old Quarter", "emoji": "🏘️", "type": "Heritage", "distance_km": 2.5, "rating": 4.1, "entry_fee": "Free", "timing": "All day", "tip": "Explore the historic lanes for authentic local life"},
+        {"name": f"{dest} Food Street", "emoji": "🍛", "type": "Food", "distance_km": 0.8, "rating": 4.6, "entry_fee": "Free", "timing": "Evening 5–11 PM", "tip": "Best local street food — try the regional specialties"},
+    ]
+
+def _get_city_hotels(dest, days):
+    """Get city-specific hotels."""
+    city_data = CITY_MOCK_DATA.get(dest, {})
+    if city_data:
+        return city_data.get("hotels", [])
+    return [
+        {"id":"h1","name":f"Grand {dest} Palace","stars":5,"price_per_night":9000,"locality":"City Centre","rating":4.7,"review_count":2341,"amenities":["Pool","Spa","Gym","Free WiFi","Restaurant"],"type":"luxury","highlights":"Premier luxury hotel with panoramic city views"},
+        {"id":"h2","name":f"{dest} Heritage Inn","stars":4,"price_per_night":4500,"locality":"Old Quarter","rating":4.4,"review_count":1820,"amenities":["Pool","Free WiFi","Breakfast Included","AC"],"type":"mid-range","highlights":"Boutique property with local heritage character"},
+        {"id":"h3","name":f"Comfort Suites {dest}","stars":3,"price_per_night":2200,"locality":"Station Area","rating":4.1,"review_count":987,"amenities":["Free WiFi","AC","Hot Water","TV"],"type":"mid-range","highlights":"Great value — 5 min from railway station"},
+        {"id":"h4","name":f"Backpackers Hub {dest}","stars":2,"price_per_night":750,"locality":"Backpacker Lane","rating":4.0,"review_count":654,"amenities":["Free WiFi","Common Kitchen","Lockers"],"type":"budget","highlights":"Social hostel atmosphere for budget travelers"},
+    ]
+
 def _mock_transport(analysis):
+    origin = analysis.get("origin", "Kolkata")
+    dest = analysis.get("destination", "Goa")
     return [
         {"id":"t1","type":"train","name":"Gitanjali Express","number":"12859","departure":"14:05","arrival":"08:35+1","duration":"18h 30m","price_per_person":1450,"class":"3A AC","seats_available":12,"amenities":["Pantry Car","Bedding","Charging Points"],"operator":"Indian Railways","rating":4.2},
-        {"id":"t2","type":"train","name":"Howrah Goa Express","number":"22887","departure":"22:00","arrival":"16:30+1","duration":"18h 30m","price_per_person":890,"class":"Sleeper","seats_available":28,"amenities":["Pantry Car","Charging Points"],"operator":"Indian Railways","rating":3.8},
+        {"id":"t2","type":"train","name":f"{origin} Mail","number":"12302","departure":"22:00","arrival":"16:30+1","duration":"18h 30m","price_per_person":890,"class":"Sleeper","seats_available":28,"amenities":["Pantry Car","Charging Points"],"operator":"Indian Railways","rating":3.8},
         {"id":"f1","type":"flight","name":"IndiGo","number":"6E-401","departure":"06:30","arrival":"09:00","duration":"2h 30m","price_per_person":6200,"class":"Economy","seats_available":45,"amenities":["Cabin Baggage 7kg","Meal on purchase"],"operator":"IndiGo Airlines","rating":4.1},
         {"id":"f2","type":"flight","name":"Air India","number":"AI-665","departure":"10:15","arrival":"12:45","duration":"2h 30m","price_per_person":7800,"class":"Economy Flex","seats_available":18,"amenities":["Free Meal","Cabin Baggage 7kg","Check-in 15kg"],"operator":"Air India","rating":4.4},
         {"id":"b1","type":"bus","name":"VRL Travels AC Sleeper","number":"VRL-902","departure":"19:00","arrival":"13:00+1","duration":"18h 00m","price_per_person":1100,"class":"AC Sleeper","seats_available":6,"amenities":["WiFi","Charging","Blanket","Water Bottle"],"operator":"VRL Travels","rating":4.0},
@@ -434,37 +573,66 @@ def _mock_transport(analysis):
 
 def _mock_itinerary(analysis):
     days = analysis.get("duration_days", 5)
-    plans = [
-        ("Arrival & Settle In", [("14:00","Check in to hotel","🏨"),("16:00","Freshen up & local walk","🚶"),("19:00","Sunset at the beach","🌅"),("21:00","Welcome dinner at local restaurant","🍽️")]),
-        ("Explore the City", [("08:00","Morning breakfast","☕"),("09:30","Visit famous monuments","🏛️"),("12:30","Lunch at local dhaba","🍛"),("14:30","Shopping at local market","🛍️"),("17:00","Cultural show","🎭"),("20:00","Rooftop dinner","🌃")]),
-        ("Day Trips & Adventures", [("07:00","Early morning excursion","🌄"),("09:00","Scenic viewpoint","📷"),("12:00","Picnic lunch","🧺"),("15:00","Water sports","🏄"),("18:30","Return to hotel","🏨"),("20:30","BBQ dinner","🔥")]),
-        ("Leisure & Local Culture", [("09:00","Breakfast & relaxation","☕"),("11:00","Local cooking class","👨‍🍳"),("13:30","Lunch","🍽️"),("15:00","Spa session","💆"),("17:30","Evening beach walk","🏖️"),("20:00","Night market","🌙")]),
-        ("Departure Day", [("08:00","Final breakfast","☕"),("09:30","Last-minute sightseeing","📸"),("11:30","Souvenir shopping","🎁"),("13:00","Check out from hotel","🏨"),("15:00","Head to station/airport","🚉"),("17:00","Depart with memories","✈️")]),
-    ]
-    return [{"day": i+1, "title": t, "activities": [{"time": tm, "activity": a, "emoji": e} for tm, a, e in acts]}
-            for i, (t, acts) in enumerate(plans[:days])]
-
-
-def _mock_hotels(analysis):
     dest = analysis.get("destination", "Goa")
-    return [
-        {"id":"h1","name":f"Grand Radiance {dest}","stars":5,"price_per_night":8500,"locality":"City Centre","rating":4.7,"review_count":2341,"amenities":["Pool","Spa","Gym","Free WiFi","Restaurant"],"type":"luxury","highlights":"Panoramic city views & rooftop bar"},
-        {"id":"h2","name":"The Heritage Palace","stars":4,"price_per_night":4200,"locality":"Old Quarter","rating":4.4,"review_count":1820,"amenities":["Pool","Free WiFi","Breakfast Included","AC"],"type":"mid-range","highlights":"Heritage property with colonial charm"},
-        {"id":"h3","name":"Comfort Suites Express","stars":3,"price_per_night":2100,"locality":"Station Area","rating":4.1,"review_count":987,"amenities":["Free WiFi","AC","Hot Water","TV"],"type":"mid-range","highlights":"Great value, 5 min from station"},
-        {"id":"h4","name":"Backpacker's Haven","stars":2,"price_per_night":800,"locality":"Backpacker Lane","rating":4.0,"review_count":654,"amenities":["Free WiFi","Common Kitchen","Lockers"],"type":"budget","highlights":"Social atmosphere, meet fellow travellers"},
-    ]
+    city_attractions = _get_city_attractions(dest)
+    attraction_names = [a["name"] for a in city_attractions[:6]]
+    
+    plans = []
+    for i in range(days):
+        if i == 0:
+            plans.append(("Arrival & First Impressions", [
+                ("14:00", "Check in to hotel and freshen up", "🏨"),
+                ("16:00", f"First walk around {dest} city centre", "🚶"),
+                ("18:30", f"Sunset at {attraction_names[0] if attraction_names else 'the waterfront'}", "🌅"),
+                ("20:30", "Welcome dinner at a local restaurant", "🍽️"),
+            ]))
+        elif i == days - 1:
+            plans.append(("Farewell & Departure", [
+                ("08:00", "Final breakfast and packing", "☕"),
+                ("09:30", f"Quick visit to {attraction_names[min(i, len(attraction_names)-1)] if attraction_names else 'local market'}", "📸"),
+                ("11:30", "Last-minute souvenir shopping", "🎁"),
+                ("13:00", "Hotel check-out", "🏨"),
+                ("15:00", "Head to station/airport", "🚉"),
+            ]))
+        else:
+            morning_spot = attraction_names[min(i, len(attraction_names)-1)] if attraction_names else f"Day {i+1} Exploration"
+            plans.append((f"Exploring {dest} — Day {i+1}", [
+                ("08:30", "Breakfast at a local café", "☕"),
+                ("09:30", f"Visit {morning_spot}", "🏛️"),
+                ("12:30", "Lunch at a recommended local restaurant", "🍛"),
+                ("14:30", "Afternoon sightseeing", "🗺️"),
+                ("17:00", "Leisure time / shopping", "🛍️"),
+                ("20:00", "Dinner and evening out", "🌙"),
+            ]))
+    
+    return [{"day": i+1, "title": t, "activities": [{"time": tm, "activity": a, "emoji": e} for tm, a, e in acts]}
+            for i, (t, acts) in enumerate(plans)]
 
 
 def _mock_packing(analysis):
     dest = analysis.get("destination", "Goa")
     season = analysis.get("season", "winter")
+    trip_type = analysis.get("trip_type", "leisure")
+    
+    season_clothing = {
+        "summer": ["Light cotton shirts (3-4)", "Shorts or light trousers", "Sun hat / cap", "Sunglasses", "Comfortable sandals"],
+        "monsoon": ["Rain jacket / poncho", "Quick-dry clothes", "Waterproof footwear", "Umbrella", "Extra set of clothes"],
+        "winter": ["Light jacket or fleece", "Mix of t-shirts and full sleeves", "Comfortable trousers", "Walking shoes", "Scarf"],
+        "spring": ["Light cotton clothes", "A light layer for evenings", "Comfortable walking shoes", "Sunglasses"],
+    }
+    
     return {
-        "Essentials": ["Valid ID / Aadhaar Card", "Travel tickets & bookings", "Cash & cards", "Travel insurance", "Phone + charger"],
-        "Clothing": ["Light cotton shirts (3-4)", "Comfortable trousers/shorts", "Swimwear", "Light jacket/shawl for evenings", "Comfortable walking shoes", "Flip flops / sandals"],
-        "Toiletries": ["Sunscreen SPF 50+", "Insect repellent", "Moisturiser", "Travel-size shampoo & soap", "Hand sanitiser"],
-        "Electronics": ["Camera & memory cards", "Power bank (10000mAh+)", "Universal travel adapter", "Earphones / AirPods"],
-        "Documents": ["E-tickets (downloaded offline)", "Hotel bookings", "Emergency contacts list", "Travel itinerary copy"],
-        "Destination-Specific": [f"Beach bag for {dest} beaches", "Waterproof bag for valuables", "Reusable water bottle", "Snorkel gear (or rent locally)"]
+        "Essentials": ["Valid ID / Aadhaar Card", "Travel tickets & bookings (downloaded offline)", "Cash + UPI-linked debit card", "Travel insurance documents", "Phone + charger"],
+        "Clothing": season_clothing.get(season, season_clothing["winter"]),
+        "Toiletries": ["Sunscreen SPF 50+", "Insect repellent (essential in coastal/forested areas)", "Moisturiser", "Travel-size shampoo & soap", "Hand sanitiser", "Personal medications"],
+        "Electronics": ["Camera & extra memory cards", "Power bank (10000mAh+)", "Universal travel adapter", "Earphones / AirPods"],
+        "Documents": ["E-tickets (downloaded, not just screenshot)", "Hotel booking confirmations", "Emergency contacts list", "Trip itinerary copy"],
+        "Destination-Specific": [
+            f"Beach bag and towel" if dest in ["Goa", "Goa", "Chennai", "Kerala"] else f"Comfortable walking shoes for {dest} sightseeing",
+            "Waterproof bag for electronics near water",
+            "Reusable water bottle (stay hydrated!)",
+            f"Modest clothing for temple visits" if dest in ["Jaipur", "Varanasi", "Chennai", "Madurai"] else "Casual wear for evenings",
+        ]
     }
 
 
@@ -483,31 +651,36 @@ def _mock_budget(analysis, transport_cost):
     }
 
 
-def _mock_attractions(analysis):
+def _mock_weather(analysis):
+    dest = analysis.get("destination", "Goa")
+    season = analysis.get("season", "winter")
+    
+    weather_by_season = {
+        "summer": {"emoji": "☀️", "temp_high": 38, "temp_low": 28, "condition": "Hot and sunny", "humidity": 55, "rain_chance": 5, "uv_index": 10, "advice": "Stay hydrated. Light cotton clothes, sunscreen and hat essential."},
+        "monsoon": {"emoji": "🌧️", "temp_high": 28, "temp_low": 22, "condition": "Heavy showers with bright spells", "humidity": 90, "rain_chance": 80, "uv_index": 3, "advice": "Pack waterproofs and quick-dry clothes. Evenings can be beautiful between showers."},
+        "winter": {"emoji": "⛅", "temp_high": 30, "temp_low": 18, "condition": "Pleasantly cool and clear", "humidity": 60, "rain_chance": 5, "uv_index": 6, "advice": "Perfect travel weather. Light layers for evenings, sunscreen for daytime."},
+        "spring": {"emoji": "🌤️", "temp_high": 33, "temp_low": 22, "condition": "Warm and mostly sunny", "humidity": 65, "rain_chance": 10, "uv_index": 7, "advice": "Light cotton clothes. Sunscreen and a light scarf for dusty areas."},
+    }
+    
+    w = weather_by_season.get(season, weather_by_season["winter"])
+    w["forecast"] = [
+        {"day": "Mon", "emoji": "☀️", "high": w["temp_high"], "low": w["temp_low"]},
+        {"day": "Tue", "emoji": "⛅", "high": w["temp_high"]-2, "low": w["temp_low"]-1},
+        {"day": "Wed", "emoji": "🌧️" if season == "monsoon" else "⛅", "high": w["temp_high"]-4, "low": w["temp_low"]-2},
+        {"day": "Thu", "emoji": "☀️", "high": w["temp_high"]+1, "low": w["temp_low"]+1},
+        {"day": "Fri", "emoji": "⛅", "high": w["temp_high"]-1, "low": w["temp_low"]},
+    ]
+    return w
+
+
+def _mock_savings_tips(analysis):
     dest = analysis.get("destination", "Goa")
     return [
-        {"name": "Old City Heritage Walk", "emoji": "🏛️", "type": "Heritage", "distance_km": 2.1, "rating": 4.6, "entry_fee": "Free", "timing": "All day", "tip": "Best explored in early morning to avoid crowds"},
-        {"name": "Spice Plantation Tour", "emoji": "🌿", "type": "Nature", "distance_km": 18.5, "rating": 4.4, "entry_fee": "₹400", "timing": "9 AM–5 PM", "tip": "Includes lunch with authentic local cuisine"},
-        {"name": "Local Food Street", "emoji": "🍛", "type": "Food", "distance_km": 0.8, "rating": 4.8, "entry_fee": "Free", "timing": "Evening 5–11 PM", "tip": "Must-try: local seafood & coconut sweets"},
-        {"name": "Sunset Beach Point", "emoji": "🌅", "type": "Nature", "distance_km": 5.5, "rating": 4.9, "entry_fee": "Free", "timing": "Sunrise / Sunset", "tip": "Arrive 20 min early for the best spot"},
-        {"name": "Water Sports Hub", "emoji": "🏄", "type": "Adventure", "distance_km": 7.2, "rating": 4.3, "entry_fee": "₹1500–3000", "timing": "8 AM–6 PM", "tip": "Book parasailing + jet ski combo for discount"},
-        {"name": "Night Bazaar Market", "emoji": "🛍️", "type": "Shopping", "distance_km": 1.5, "rating": 4.2, "entry_fee": "Free", "timing": "Sat 6 PM–12 AM", "tip": "Bargain for handicrafts — first quote is always 2x"},
+        f"Book train/bus tickets 60-90 days in advance for the best prices — Tatkal seats are 30-40% more expensive",
+        f"Eat at local restaurants and thali spots in {dest} — authentic food at one-third the tourist restaurant price",
+        f"Use IRCTC app for train tickets and avoid touts — all tickets are the same price from source",
+        f"Opt for homestays in {dest} via Airbnb or local listings — often 40% cheaper than equivalent hotels",
     ]
-
-
-def _mock_weather(analysis):
-    return {
-        "emoji": "⛅", "temp_high": 30, "temp_low": 22, "condition": "Partly cloudy, pleasant breeze",
-        "humidity": 72, "rain_chance": 20, "uv_index": 6,
-        "advice": "Light cotton clothes recommended. Carry a small umbrella just in case.",
-        "forecast": [
-            {"day": "Mon", "emoji": "☀️", "high": 30, "low": 22},
-            {"day": "Tue", "emoji": "⛅", "high": 29, "low": 21},
-            {"day": "Wed", "emoji": "🌧️", "high": 26, "low": 20},
-            {"day": "Thu", "emoji": "☀️", "high": 31, "low": 23},
-            {"day": "Fri", "emoji": "⛅", "high": 30, "low": 22},
-        ]
-    }
 
 
 def generate_pnr():
@@ -563,89 +736,34 @@ def transport_comparison_chart(options: list, pax: int):
 
 
 def weather_forecast_chart(forecast):
-
     fig = go.Figure()
 
-    # Handle list format
-    if isinstance(forecast, list):
-
-        dates = []
-        temps = []
-
-        for item in forecast:
-            dates.append(
-                item.get("date")
-                or item.get("time")
-                or item.get("datetime")
-            )
-
-            temps.append(
-                item.get("temperature")
-                or item.get("temp")
-                or item.get("temperature_2m")
-            )
-
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=temps,
-                mode="lines+markers",
-                name="Temperature"
-            )
-        )
-
-
-    # Handle dictionary format
+    if isinstance(forecast, list) and forecast:
+        # New format: list of {day, emoji, high, low}
+        if "day" in forecast[0]:
+            days = [f.get("day", "") for f in forecast]
+            highs = [f.get("high", 0) for f in forecast]
+            lows = [f.get("low", 0) for f in forecast]
+            fig.add_trace(go.Scatter(x=days, y=highs, mode="lines+markers", name="High °C",
+                line=dict(color="#ff6b9d", width=2), marker=dict(size=8)))
+            fig.add_trace(go.Scatter(x=days, y=lows, mode="lines+markers", name="Low °C",
+                line=dict(color="#7c6bff", width=2), marker=dict(size=8)))
+        else:
+            dates = [item.get("date") or item.get("time") or item.get("datetime") for item in forecast]
+            temps = [item.get("temperature") or item.get("temp") or item.get("temperature_2m") for item in forecast]
+            fig.add_trace(go.Scatter(x=dates, y=temps, mode="lines+markers", name="Temperature"))
     elif isinstance(forecast, dict):
+        dates = forecast.get("date") or forecast.get("time") or forecast.get("dates")
+        temps = forecast.get("temperature") or forecast.get("temp") or forecast.get("temperature_2m")
+        fig.add_trace(go.Scatter(x=dates, y=temps, mode="lines+markers", name="Temperature"))
 
-        dates = (
-            forecast.get("date")
-            or forecast.get("time")
-            or forecast.get("dates")
-        )
-
-        temps = (
-            forecast.get("temperature")
-            or forecast.get("temp")
-            or forecast.get("temperature_2m")
-        )
-
-
-        fig.add_trace(
-            go.Scatter(
-                x=dates,
-                y=temps,
-                mode="lines+markers",
-                name="Temperature"
-            )
-        )
-
-
-    fig.update_layout(
-        **PLOTLY_LAYOUT,
-        height=200
-    )
-
-
-    fig.update_yaxes(
-        gridcolor="#2a2a3a",
-        ticksuffix="°C"
-    )
-
-    fig.update_xaxes(
-        gridcolor="#1e1e2e"
-    )
-
-
-    fig.update_layout(
-        legend=dict(
-            orientation="h",
-            y=-0.3
-        )
-    )
-
-
+    fig.update_layout(**PLOTLY_LAYOUT, height=200)
+    fig.update_yaxes(gridcolor="#2a2a3a", ticksuffix="°C")
+    fig.update_xaxes(gridcolor="#1e1e2e")
+    fig.update_layout(legend=dict(orientation="h", y=-0.3))
     return fig
+
+
 def rating_radar_chart(options: list):
     if not options:
         return None
@@ -709,9 +827,9 @@ with st.sidebar:
     if key_input:
         st.session_state.gemini_key = key_input
     if st.session_state.gemini_key:
-        st.success("✓ API key set — using Gemini AI")
+        st.success("✓ API key set — using Gemini AI for accurate, destination-specific data")
     else:
-        st.info("No key → Demo mode with rich sample data")
+        st.info("No key → Demo mode with curated sample data (Goa, Chennai, Jaipur fully detailed)")
 
     st.markdown("---")
     st.markdown("**🎯 Quick Trip Templates**")
@@ -783,11 +901,38 @@ if step == 1:
         if len(tour_input.strip()) < 20:
             st.error("Please describe your trip in a bit more detail.")
         else:
-            with st.spinner("VoyageAI is reading your plan…"):
-                analysis = analyze_tour_with_ai(tour_input)
-                weather = generate_weather_with_ai(analysis)
-                st.session_state.ai_analysis = analysis
-                st.session_state.weather = weather
+            with st.spinner("VoyageAI is reading your plan and fetching destination-specific data…"):
+                # MASTER CALL: one comprehensive AI request for all trip data
+                master_data = analyze_trip_master(tour_input)
+                
+                if master_data:
+                    # AI succeeded — extract all data from master response
+                    st.session_state._master_data = master_data
+                    analysis = extract_analysis(master_data)
+                    st.session_state.ai_analysis = analysis
+                    st.session_state.weather = master_data.get("weather", {})
+                    st.session_state.attractions = master_data.get("attractions", [])
+                    st.session_state.transport_options = master_data.get("transport_options", [])
+                    st.session_state.hotels = master_data.get("hotels", [])
+                    st.session_state.itinerary = master_data.get("itinerary", [])
+                    st.session_state.packing_list = master_data.get("packing_list", {})
+                    st.session_state.budget_breakdown = master_data.get("budget_breakdown", {})
+                    st.session_state._savings_tips = master_data.get("savings_tips", [])
+                else:
+                    # Fallback: mock data with city-specific content
+                    analysis = _mock_analysis(tour_input)
+                    st.session_state.ai_analysis = analysis
+                    st.session_state.weather = _mock_weather(analysis)
+                    dest = analysis.get("destination", "Goa")
+                    st.session_state.attractions = _get_city_attractions(dest)
+                    st.session_state.transport_options = _mock_transport(analysis)
+                    st.session_state.hotels = _get_city_hotels(dest, analysis.get("duration_days", 5))
+                    st.session_state.itinerary = _mock_itinerary(analysis)
+                    st.session_state.packing_list = _mock_packing(analysis)
+                    st.session_state._savings_tips = _mock_savings_tips(analysis)
+                    # Budget breakdown computed after transport selection — defer
+                    st.session_state.budget_breakdown = {}
+
             st.session_state.step = 2
             st.rerun()
 
@@ -864,11 +1009,7 @@ elif step == 2:
 
         st.markdown('</div>', unsafe_allow_html=True)
 
-    # Attractions preview
-    with st.spinner("Loading top attractions…"):
-        if not st.session_state.attractions:
-            st.session_state.attractions = generate_attractions_with_ai(analysis)
-
+    # Attractions — already fetched in step 1 master call
     attractions = st.session_state.attractions
     if attractions:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
@@ -892,10 +1033,7 @@ elif step == 2:
             st.session_state.step = 1
             st.rerun()
     with col2:
-        if st.button("Fetch Transport Options →", use_container_width=True):
-            with st.spinner("Searching best routes…"):
-                options = fetch_transport_with_ai(analysis)
-                st.session_state.transport_options = options
+        if st.button("View Transport Options →", use_container_width=True):
             st.session_state.step = 3
             st.rerun()
 
@@ -996,9 +1134,11 @@ elif step == 3:
             if not st.session_state.selected_transport:
                 st.error("Please select a transport option first.")
             else:
-                with st.spinner("Finding best hotels…"):
-                    hotels = generate_hotels_with_ai(analysis)
-                    st.session_state.hotels = hotels
+                # Compute budget breakdown now that transport is selected
+                if not st.session_state.budget_breakdown:
+                    chosen = next((o for o in options if o["id"] == st.session_state.selected_transport), options[0] if options else {})
+                    transport_cost = chosen.get("price_per_person", 0) * analysis.get("travelers", 1)
+                    st.session_state.budget_breakdown = _mock_budget(analysis, transport_cost)
                 st.session_state.step = 4
                 st.rerun()
 
@@ -1047,11 +1187,11 @@ elif step == 4:
         st.markdown('<div class="glass-card">', unsafe_allow_html=True)
         st.markdown('<div class="section-title">💰 AI Budget Estimator</div>', unsafe_allow_html=True)
 
-        if not st.session_state.budget_breakdown:
-            with st.spinner("Calculating budget…"):
-                st.session_state.budget_breakdown = generate_budget_breakdown_with_ai(analysis, chosen)
-
         breakdown = st.session_state.budget_breakdown
+        if not breakdown:
+            transport_cost = chosen.get("price_per_person", 0) * pax
+            breakdown = _mock_budget(analysis, transport_cost)
+            st.session_state.budget_breakdown = breakdown
 
         st.markdown('<div style="font-size:0.8rem;color:#7070a0;margin-bottom:0.8rem;">Adjust your spending estimates:</div>', unsafe_allow_html=True)
 
@@ -1076,13 +1216,8 @@ elif step == 4:
         st.plotly_chart(budget_pie_chart(adjusted), use_container_width=True, config={"displayModeBar": False})
 
         st.markdown('<div style="font-size:0.8rem;font-family:Space Grotesk;color:#7070a0;text-transform:uppercase;letter-spacing:0.08em;margin:0.8rem 0 0.5rem;">💡 Smart Savings Tips</div>', unsafe_allow_html=True)
-        tips_list = [
-            f"Book train tickets 60-90 days in advance to save up to 20%",
-            f"Opt for homestays in {analysis.get('destination','')} — often 40% cheaper than hotels",
-            f"Eat at local dhabas & street stalls — authentic food at 1/3 the price",
-            f"Use UPI payments everywhere — avoid forex/ATM charges",
-        ]
-        for tip in tips_list:
+        savings_tips = st.session_state.get("_savings_tips", _mock_savings_tips(analysis))
+        for tip in savings_tips:
             st.markdown(f'<div class="savings-pill">💚 {tip}</div>', unsafe_allow_html=True)
 
         st.markdown('</div>', unsafe_allow_html=True)
@@ -1092,11 +1227,11 @@ elif step == 4:
         st.markdown(f'<div class="section-title">🎒 AI Packing List</div>', unsafe_allow_html=True)
         st.markdown(f'<div style="font-size:0.8rem;color:#7070a0;margin-bottom:1rem;">Personalised for {analysis.get("destination","")} · {analysis.get("season","").title()} · {analysis.get("trip_type","").title()} trip</div>', unsafe_allow_html=True)
 
-        if not st.session_state.packing_list:
-            with st.spinner("Generating packing list…"):
-                st.session_state.packing_list = generate_packing_list_with_ai(analysis)
-
         packing = st.session_state.packing_list
+        if not packing:
+            packing = _mock_packing(analysis)
+            st.session_state.packing_list = packing
+
         section_icons = {"Essentials": "📋", "Clothing": "👔", "Toiletries": "🧴", "Electronics": "🔌", "Documents": "📄", "Destination-Specific": "🌴"}
 
         pack_cols = st.columns(2)
@@ -1117,10 +1252,10 @@ elif step == 4:
             st.session_state.step = 3
             st.rerun()
     with col2:
-        if st.button("Generate Itinerary →", use_container_width=True):
-            with st.spinner("Building your perfect itinerary…"):
-                itinerary = generate_itinerary_with_ai(analysis, chosen)
-                st.session_state.itinerary = itinerary
+        if st.button("View Itinerary →", use_container_width=True):
+            # Itinerary already generated in step 1 master call
+            if not st.session_state.itinerary:
+                st.session_state.itinerary = _mock_itinerary(analysis)
             st.session_state.step = 5
             st.rerun()
 
