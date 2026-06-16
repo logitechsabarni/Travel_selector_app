@@ -665,7 +665,7 @@ def rating_radar_chart(options: list):
             r=vals + [vals[0]], theta=cats + [cats[0]],
             fill="toself", name=opt.get("name",""),
             line=dict(color=colors[i % len(colors)]),
-            fillcolor=colors[i % len(colors)].replace("#", "rgba(") + ",0.1)" if "#" in colors[i] else colors[i],
+            fillcolor="rgba(255,107,157,0.25)"
             opacity=0.8,
         ))
     fig.update_layout(**PLOTLY_LAYOUT, height=300,
