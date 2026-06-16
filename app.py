@@ -582,11 +582,14 @@ def weather_forecast_chart(forecast: list):
         marker=dict(size=8, color="#118ab2"),
         fillcolor="rgba(17,138,178,0.1)"
     ))
-    fig.update_layout(**PLOTLY_LAYOUT, height=200,
-        yaxis=dict(gridcolor="#2a2a3a", ticksuffix="°C"),
-        xaxis=dict(gridcolor="#1e1e2e"),
-        legend=dict(orientation="h", y=-0.3),
-    )
+   fig.update_layout(**PLOTLY_LAYOUT)
+
+   fig.update_layout(
+       height=200,
+       yaxis=dict(gridcolor="#2a2a3a", ticksuffix="°C"),
+       xaxis=dict(gridcolor="#1e1e2e"),
+       legend=dict(orientation="h", y=-0.3),
+   )
     return fig
 
 
