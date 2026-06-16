@@ -40,3 +40,5 @@ streamlit run app.py
 - "I want to travel from Kolkata to Goa next week for 5 days with my girlfriend. We love beaches and seafood. Budget is medium."
 - "Solo trip from Delhi to Jaipur for 3 days to explore forts and eat street food. Low budget."
 - "Family trip (4 people) from Mumbai to Kerala for 7 days in December."
+
+- https://travelselectorapp-jceugubclkbalfty8mknbj.streamlit.app/
