@@ -590,7 +590,7 @@ def weather_forecast_chart(forecast: list):
        xaxis=dict(gridcolor="#1e1e2e"),
        legend=dict(orientation="h", y=-0.3),
    )
-    return fig
+   return fig
 
 
 def rating_radar_chart(options: list):
