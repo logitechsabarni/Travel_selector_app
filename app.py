@@ -564,30 +564,70 @@ def transport_comparison_chart(options: list, pax: int):
 
 
 def weather_forecast_chart(forecast):
+
     fig = go.Figure()
 
-    fig.add_trace(
-        go.Scatter(
-            x=forecast["date"],
-            y=forecast["temp_max"],
-            mode="lines+markers",
-            name="Max Temp"
+    # Handle list format
+    if isinstance(forecast, list):
+
+        dates = []
+        temps = []
+
+        for item in forecast:
+            dates.append(
+                item.get("date")
+                or item.get("time")
+                or item.get("datetime")
+            )
+
+            temps.append(
+                item.get("temperature")
+                or item.get("temp")
+                or item.get("temperature_2m")
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=temps,
+                mode="lines+markers",
+                name="Temperature"
+            )
         )
+
+
+    # Handle dictionary format
+    elif isinstance(forecast, dict):
+
+        dates = (
+            forecast.get("date")
+            or forecast.get("time")
+            or forecast.get("dates")
+        )
+
+        temps = (
+            forecast.get("temperature")
+            or forecast.get("temp")
+            or forecast.get("temperature_2m")
+        )
+
+
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=temps,
+                mode="lines+markers",
+                name="Temperature"
+            )
+        )
+
+
+    fig.update_layout(
+        **PLOTLY_LAYOUT,
+        height=200
     )
 
-    fig.add_trace(
-        go.Scatter(
-            x=forecast["date"],
-            y=forecast["temp_min"],
-            mode="lines+markers",
-            name="Min Temp"
-        )
-    )
 
-    # Apply base layout first
-    fig.update_layout(**PLOTLY_LAYOUT)
-
-    # Update axes separately
     fig.update_yaxes(
         gridcolor="#2a2a3a",
         ticksuffix="°C"
@@ -597,14 +637,14 @@ def weather_forecast_chart(forecast):
         gridcolor="#1e1e2e"
     )
 
-    # Final layout settings
+
     fig.update_layout(
-        height=200,
         legend=dict(
             orientation="h",
             y=-0.3
         )
     )
+
 
     return fig
 def rating_radar_chart(options: list):
