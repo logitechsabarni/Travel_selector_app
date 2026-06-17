@@ -1,5 +1,7 @@
-streamlit 
-plotly 
-langchain-google-genai
-langchain
+streamlit
+langchain-groq
 langchain-core
+requests
+plotly
+pandas
+python-dotenv
