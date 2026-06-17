@@ -1,4 +1,3 @@
-
 import streamlit as st
 import json
 import re
@@ -235,6 +234,10 @@ def init_state():
         "budget_breakdown": {},
         "attractions": [],
         "weather": {},
+        "local_foods": [],
+        "hidden_gems": [],
+        "local_experiences": [],
+        "travel_tips": [],
         "booked": False,
         "pnr": None,
         "gemini_key": "",
@@ -278,24 +281,94 @@ def _llm_json(system_msg, user_content):
 # Single comprehensive Gemini call for all destination-specific data.
 # Replaces scattered mock functions with one accurate, verified AI response.
 
-MASTER_SYSTEM_PROMPT = """You are VoyageAI, an advanced AI travel planner and authoritative local destination expert for Indian travel.
+MASTER_SYSTEM_PROMPT = """You are TravelGPT Elite operating as VoyageAI — an advanced AI travel planner, local destination expert, weather-aware travel advisor, itinerary designer, food guide, and budget consultant for Indian travel.
 
-CRITICAL ACCURACY RULES — READ BEFORE GENERATING ANYTHING:
-1. Every attraction, restaurant, hotel area, and experience MUST physically exist in the DESTINATION city only.
-2. Before including any place, internally verify: "Is this geographically located in the destination city?"
-3. NEVER invent fictional places, mix up cities, or use placeholder names like "Old City Heritage Walk" or "Spice Plantation Tour" generically.
-4. Base recommendations on real, well-known locations that a local would recognise.
-5. Consider the travel season from the dates when giving weather and clothing advice.
-6. For Indian cities: use correct local knowledge — e.g. Chennai → Marina Beach, Kapaleeshwarar Temple, Mylapore, Besant Nagar, T Nagar; Goa → Calangute, Anjuna, Old Goa, Panjim; Jaipur → Hawa Mahal, Amber Fort, Johri Bazaar etc.
-7. Return ONLY valid JSON — no preamble, no markdown fences, no extra text.
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-You will return a single comprehensive JSON object covering the entire trip intelligence."""
+1. Every response must be generated dynamically.
+2. NEVER use generic placeholder attractions. NEVER use:
+   - "Old City Heritage Walk", "Sunset Beach Point", "Local Food Street"
+   - "Spice Plantation Tour", "Night Bazaar Market", "Generic Heritage Tour"
+   - "Generic Beach Spot"
+   unless they are ACTUAL named locations in the destination.
+3. Attractions, food, weather advice, experiences, budget estimates, and itinerary MUST change when destination changes.
+4. Use authentic local knowledge. Prefer real landmarks, local cuisine, and culturally relevant activities.
+5. Do NOT invent famous attractions. Every place must physically exist.
+6. For Indian cities use correct local knowledge:
+   - Chennai → Marina Beach, Kapaleeshwarar Temple, Mylapore, Fort St. George, San Thome Basilica, Besant Nagar
+   - Goa → Calangute, Anjuna, Baga, Basilica of Bom Jesus, Panjim, Fontainhas, Dudhsagar Falls
+   - Jaipur → Hawa Mahal, Amber Fort, City Palace, Jantar Mantar, Johri Bazaar, Nahargarh Fort
+   - Mumbai → Gateway of India, Marine Drive, Elephanta Caves, Dharavi, Colaba Causeway, Bandra
+   - Delhi → Red Fort, Qutub Minar, Humayun's Tomb, Chandni Chowk, Lotus Temple, India Gate
+   - Kolkata → Victoria Memorial, Howrah Bridge, Dakshineswar, Park Street, College Street
+   - Varanasi → Dashashwamedh Ghat, Kashi Vishwanath, Sarnath, Assi Ghat, Manikarnika Ghat
+   - Agra → Taj Mahal, Agra Fort, Fatehpur Sikri, Mehtab Bagh, Itimad-ud-Daulah
+   - Manali → Rohtang Pass, Solang Valley, Hadimba Temple, Old Manali, Beas River
 
-def build_master_prompt(description, analysis_only=False):
-    """Build the master prompt using trip description."""
-    return f"""Analyze this Indian travel plan and return accurate, destination-specific JSON:
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEATHER RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Generate estimated weather based on destination, travel month, and season.
+- Weather must vary per destination — coastal cities differ from hill stations differ from desert cities.
+- Include: temperature range, humidity, condition, rain probability, UV level, clothing advice.
+- Generate a 5-day forecast.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+FOOD RECOMMENDATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Recommend 4-5 authentic local dishes with:
+- name, description, why it is famous, where to try it (a real restaurant or area name)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+LOCAL EXPERIENCES
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Suggest 4-5 destination-specific experiences based on trip type:
+- cultural events, local markets, festivals, workshops, adventure activities, romantic activities
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+HIDDEN GEMS
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Suggest 3-4 lesser-known but real places locals love that tourists typically miss.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+QUALITY VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Before responding verify:
+✓ Attractions belong to the destination.
+✓ Food recommendations belong to the destination.
+✓ Weather matches destination and season.
+✓ Itinerary is realistic with practical timing and travel flow.
+✓ Budget estimates are reasonable for destination and duration.
+✓ No placeholder attractions exist.
+✓ Recommendations match interests and trip type.
+✓ Output differs for different destinations.
+✓ Hidden gems are real lesser-known spots, not famous tourist traps.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Return ONLY valid JSON. No markdown. No explanations. No code blocks."""
+
+
+def build_master_prompt(description: str) -> str:
+    """Build the master user prompt injecting trip description into TravelGPT Elite schema."""
+    return f"""Analyze this Indian travel plan and generate a complete, accurate, destination-specific travel package.
 
 User Input: "{description}"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMPORTANT: Parse the user input to extract:
+- source_city, destination_city, departure_date, duration_days, travelers, budget, trip_type, season, interests
+Then use those values to fill every section below with REAL, DESTINATION-SPECIFIC content.
+━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Return this EXACT JSON structure (all fields required):
 {{
@@ -310,18 +383,20 @@ Return this EXACT JSON structure (all fields required):
     "interests": ["interest1", "interest2"],
     "season": "summer/monsoon/winter/spring",
     "trip_type": "leisure/adventure/cultural/family/solo/romantic",
-    "description": "2-3 sentence friendly trip summary",
-    "travel_advice": ["tip1", "tip2", "tip3"]
+    "description": "2-3 sentence engaging trip summary mentioning the destination and highlights",
+    "trip_highlight": "One compelling sentence about the best thing about this destination right now",
+    "travel_advice": ["Practical tip 1 specific to destination", "Practical tip 2", "Practical tip 3"]
   }},
+
   "weather": {{
     "emoji": "☀️",
     "temp_high": 32,
     "temp_low": 24,
-    "condition": "Sunny with light breeze",
+    "condition": "Destination and season specific condition",
     "humidity": 65,
     "rain_chance": 10,
     "uv_index": 7,
-    "advice": "What to wear and carry advice specific to destination and season",
+    "advice": "Clothing and precaution advice specific to this destination and season",
     "forecast": [
       {{"day": "Mon", "emoji": "☀️", "high": 32, "low": 24}},
       {{"day": "Tue", "emoji": "⛅", "high": 30, "low": 23}},
@@ -330,6 +405,17 @@ Return this EXACT JSON structure (all fields required):
       {{"day": "Fri", "emoji": "⛅", "high": 31, "low": 24}}
     ]
   }},
+
+  "travel_tips": [
+    "Transportation tip specific to destination",
+    "Local customs or etiquette tip",
+    "Budgeting tip for this destination",
+    "Safety tip relevant to this destination",
+    "Weather or season-specific precaution",
+    "Local etiquette tip",
+    "Scam or tourist trap to avoid in this city"
+  ],
+
   "attractions": [
     {{
       "name": "REAL place name that actually exists in destination city",
@@ -339,15 +425,46 @@ Return this EXACT JSON structure (all fields required):
       "rating": 4.6,
       "entry_fee": "Free or ₹200",
       "timing": "6 AM–8 PM",
-      "tip": "Specific insider tip a local would give"
+      "description": "2-sentence description of why this place is worth visiting",
+      "tip": "Insider tip only a local would give"
     }}
   ],
+
+  "local_foods": [
+    {{
+      "name": "Real dish name from destination",
+      "emoji": "🍛",
+      "description": "What the dish is and how it tastes",
+      "why_famous": "Why this dish is iconic to the destination",
+      "where_to_try": "Name of a real restaurant, street, or area in the destination"
+    }}
+  ],
+
+  "hidden_gems": [
+    {{
+      "name": "Real lesser-known place in destination",
+      "emoji": "💎",
+      "type": "Cafe/Viewpoint/Market/Temple/Beach/Garden/etc",
+      "why_special": "Why locals love it and tourists usually miss it",
+      "tip": "How to get there or best time to visit"
+    }}
+  ],
+
+  "local_experiences": [
+    {{
+      "experience": "Name of the experience",
+      "emoji": "🎭",
+      "description": "What you do and why it's special to this destination",
+      "best_for": "solo/couple/family/group"
+    }}
+  ],
+
   "transport_options": [
     {{
       "id": "t1",
       "type": "train/bus/flight",
-      "name": "Real service name (e.g. Chennai Express, IndiGo)",
-      "number": "Train/flight number",
+      "name": "Real or realistic service name for this route",
+      "number": "Train or flight number",
       "departure": "HH:MM",
       "arrival": "HH:MM",
       "duration": "Xh Ym",
@@ -359,10 +476,11 @@ Return this EXACT JSON structure (all fields required):
       "rating": 4.2
     }}
   ],
+
   "hotels": [
     {{
       "id": "h1",
-      "name": "Real hotel name or realistic name for destination locality",
+      "name": "Real hotel name or realistic name for a real locality in destination",
       "stars": 4,
       "price_per_night": 3500,
       "locality": "Real neighbourhood in destination city",
@@ -370,26 +488,20 @@ Return this EXACT JSON structure (all fields required):
       "review_count": 1240,
       "amenities": ["WiFi", "Pool", "AC"],
       "type": "budget/mid-range/luxury",
-      "highlights": "What makes it special"
+      "highlights": "What makes this property special"
     }}
   ],
+
   "itinerary": [
     {{
       "day": 1,
-      "title": "Day theme",
+      "title": "Meaningful day theme",
       "activities": [
-        {{"time": "09:00", "activity": "Visit specific real place in destination", "emoji": "🏛️"}}
+        {{"time": "09:00", "activity": "Visit specific real place with brief description", "emoji": "🏛️"}}
       ]
     }}
   ],
-  "packing_list": {{
-    "Essentials": ["Valid ID / Aadhaar Card", "Travel tickets & bookings", "Cash & UPI-linked card"],
-    "Clothing": ["Destination and season appropriate items"],
-    "Toiletries": ["Sunscreen SPF 50+", "items relevant to destination weather"],
-    "Electronics": ["Phone + charger", "Power bank"],
-    "Documents": ["E-tickets downloaded offline", "Hotel bookings printout"],
-    "Destination-Specific": ["Items specific to the destination city and trip type"]
-  }},
+
   "budget_breakdown": {{
     "Transport": 3000,
     "Accommodation": 8000,
@@ -398,16 +510,36 @@ Return this EXACT JSON structure (all fields required):
     "Shopping": 2000,
     "Miscellaneous": 1500
   }},
+
+  "packing_list": {{
+    "Essentials": ["Valid ID / Aadhaar Card", "Travel tickets & bookings", "Cash & UPI-linked card"],
+    "Clothing": ["Season and destination appropriate items"],
+    "Toiletries": ["Sunscreen SPF 50+", "Items relevant to destination weather"],
+    "Electronics": ["Phone + charger", "Power bank"],
+    "Documents": ["E-tickets downloaded offline", "Hotel bookings printout"],
+    "Destination-Specific": ["Items specific to this destination and trip type"]
+  }},
+
   "savings_tips": [
     "Specific money-saving tip for this destination",
-    "Another practical tip",
-    "Third actionable tip",
-    "Fourth tip"
+    "Transport booking tip",
+    "Food saving tip",
+    "Accommodation tip"
   ]
 }}
 
-IMPORTANT: Generate 6-8 attractions, 5-6 transport options (mix of train/bus/flight), 4 hotels, and a day-by-day itinerary for the full trip duration.
-All places MUST be real locations in the destination city. Budget numbers should reflect actual costs for {description}."""
+QUANTITY REQUIREMENTS:
+- top_attractions: 6-8 real places in destination city
+- local_foods: 4-5 authentic local dishes
+- hidden_gems: 3-4 real lesser-known spots
+- local_experiences: 4-5 destination-specific activities
+- transport_options: 5-6 options (mix of train, bus, flight)
+- hotels: 4 options (one luxury, two mid-range, one budget)
+- itinerary: one entry per day for the full trip duration
+- travel_tips: 6-7 practical tips
+- Each itinerary day must have Morning/Afternoon/Evening activities
+
+VALIDATION: Before returning, verify every attraction and food recommendation belongs to the destination city."""
 
 
 def analyze_trip_master(description: str):
@@ -419,12 +551,9 @@ def analyze_trip_master(description: str):
     if not llm:
         return None  # Will trigger mock fallback
 
-    system_msg = MASTER_SYSTEM_PROMPT
-    user_msg = build_master_prompt(description)
-
     prompt = ChatPromptTemplate.from_messages([
-        SystemMessage(content=system_msg),
-        HumanMessage(content=user_msg)
+        SystemMessage(content=MASTER_SYSTEM_PROMPT),
+        HumanMessage(content=build_master_prompt(description))
     ])
     try:
         result = (prompt | llm).invoke({})
@@ -453,6 +582,7 @@ def extract_analysis(master_data: dict) -> dict:
         "season": s.get("season", "winter"),
         "trip_type": s.get("trip_type", "leisure"),
         "summary": s.get("description", ""),
+        "trip_highlight": s.get("trip_highlight", ""),
         "tips": s.get("travel_advice", []),
     }
 
@@ -680,6 +810,97 @@ def _mock_savings_tips(analysis):
         f"Eat at local restaurants and thali spots in {dest} — authentic food at one-third the tourist restaurant price",
         f"Use IRCTC app for train tickets and avoid touts — all tickets are the same price from source",
         f"Opt for homestays in {dest} via Airbnb or local listings — often 40% cheaper than equivalent hotels",
+    ]
+
+
+def _mock_local_foods(dest):
+    city_foods = {
+        "Goa": [
+            {"name": "Fish Curry Rice", "emoji": "🐟", "description": "Goa's daily staple — a tangy kokum-based fish curry with steamed red rice", "why_famous": "The definitive Goan meal eaten by locals every single day", "where_to_try": "Ritz Classic Restaurant, Panaji or any local toddy shop"},
+            {"name": "Prawn Balchão", "emoji": "🦐", "description": "Fiery preserved prawns cooked in a spiced vinegar masala", "why_famous": "A Portuguese-influenced Goan preserve — uniquely tart, spicy and pungent", "where_to_try": "Florentine Restaurant, Anjuna"},
+            {"name": "Bebinca", "emoji": "🍮", "description": "A layered Goan dessert made from coconut milk, eggs, and ghee", "why_famous": "The queen of Goan sweets — takes hours to make but worth every bite", "where_to_try": "Confeitaria 31 de Janeiro, Panaji"},
+            {"name": "Choriz Pão", "emoji": "🌭", "description": "Spicy Goan chorizo stuffed in crusty local bread (pão)", "why_famous": "A Portuguese-Goan street snack — smoky, spicy and impossible to eat just one", "where_to_try": "Margao Municipal Market or any Mapusa bakery"},
+        ],
+        "Chennai": [
+            {"name": "Chettinad Chicken Curry", "emoji": "🍗", "description": "Deeply spiced curry from the Chettinad region with kalpasi and marathi mokku", "why_famous": "Among India's most complex curries — a symphony of 20+ spices", "where_to_try": "Anjappar Chettinad Restaurant, T. Nagar"},
+            {"name": "Idli Sambar", "emoji": "🫓", "description": "Soft steamed rice cakes with lentil-based sambar and chutneys", "why_famous": "Chennai's beloved breakfast — lighter, softer and tangier than anywhere else in India", "where_to_try": "Murugan Idli Shop, T. Nagar — famous since 1946"},
+            {"name": "Filter Coffee", "emoji": "☕", "description": "Strong decoction coffee mixed with frothy hot milk, served in a davara-tumbler", "why_famous": "Chennai's filter coffee ritual is a daily meditation — the frothy pour is an art form", "where_to_try": "Saravana Bhavan or any Brahmin's Coffee Bar"},
+            {"name": "Kothu Parotta", "emoji": "🥘", "description": "Flaky layered flatbread shredded and stir-fried with eggs, vegetables, and curry", "why_famous": "A Chennai midnight street food classic — the rhythmic clatter of iron blades is its signature sound", "where_to_try": "Burma Bazaar area or any roadside kadai, open late"},
+        ],
+        "Jaipur": [
+            {"name": "Dal Baati Churma", "emoji": "🫙", "description": "Baked wheat balls served with five-lentil dal and sweet crushed wheat churma", "why_famous": "Rajasthan's most iconic dish — the baati is cooked in cow dung fire traditionally", "where_to_try": "Chokhi Dhani or Handi Restaurant, C-Scheme"},
+            {"name": "Laal Maas", "emoji": "🍖", "description": "Fiery mutton curry cooked with Mathania red chillies — Jaipur's most prized meat dish", "why_famous": "Historically a royal hunting camp recipe — its red colour comes from the unique Mathania chilli", "where_to_try": "Suvarna Mahal, Rambagh Palace (splurge) or Niros Restaurant, MI Road"},
+            {"name": "Pyaaz Kachori", "emoji": "🥟", "description": "Deep-fried pastry filled with spiced onion and lentil mixture", "why_famous": "Jaipur's most beloved street breakfast — the filling is sweet-spicy and uniquely Rajasthani", "where_to_try": "Rawat Mishthan Bhandar, Station Road — open since 1948"},
+            {"name": "Ghewar", "emoji": "🍯", "description": "A disc-shaped honeycomb sweet made from flour soaked in sugar syrup and topped with rabri", "why_famous": "Rajasthan's festival sweet — especially famous in Jaipur during Teej and Raksha Bandhan", "where_to_try": "Laxmi Misthan Bhandar (LMB), Johari Bazaar"},
+        ],
+    }
+    default_foods = [
+        {"name": f"{dest} Thali", "emoji": "🍽️", "description": "A complete regional meal with rice, dal, vegetables, and local accompaniments", "why_famous": f"The best way to taste the full spectrum of {dest}'s cuisine in one sitting", "where_to_try": f"Any traditional restaurant in {dest} city centre"},
+        {"name": "Local Street Chaat", "emoji": "🥗", "description": "Tangy, spicy street snacks unique to this region", "why_famous": "Every Indian city has its own chaat style — this version reflects local spice preferences", "where_to_try": f"Evening street food market in {dest}"},
+        {"name": "Regional Biryani", "emoji": "🍚", "description": "Aromatic rice dish cooked with local spices and technique", "why_famous": f"Biryani cooked in {dest}'s style uses distinct local spices and cooking method", "where_to_try": f"Old quarter of {dest}"},
+    ]
+    return city_foods.get(dest, default_foods)
+
+
+def _mock_hidden_gems(dest):
+    city_gems = {
+        "Goa": [
+            {"name": "Divar Island", "emoji": "🏝️", "type": "Nature/Culture", "why_special": "A sleepy island in the Mandovi river with zero tourists, colonial churches, and cycling paths through paddy fields", "tip": "Take the free government ferry from Old Goa — cycles can be rented on the island for ₹100/day"},
+            {"name": "Cabo de Rama Fort", "emoji": "🏰", "type": "Heritage", "why_special": "An ancient fort on a cliff with sweeping ocean views — far less visited than Chapora or Aguada", "tip": "Go at 5 PM for stunning sunset views with almost no other tourists"},
+            {"name": "Mandrem Beach", "emoji": "🏖️", "type": "Beach", "why_special": "North Goa's best-kept secret — pristine, uncrowded, with turtle nesting spots", "tip": "Walk 20 min from the village to reach the most secluded stretch"},
+        ],
+        "Chennai": [
+            {"name": "Cholamandal Artists Village", "emoji": "🎨", "type": "Art/Culture", "why_special": "India's largest artists' commune — a working art village with galleries and studios that tourists almost never visit", "tip": "Visit on weekday mornings when artists are working — entry is free"},
+            {"name": "Semmozhi Poonga Botanical Garden", "emoji": "🌿", "type": "Nature", "why_special": "A hidden urban botanical garden with 500+ plant species in the heart of the city — Chennai's green secret", "tip": "Early morning visit before 8 AM when it's quiet and perfect for photography"},
+            {"name": "Parry's Corner", "emoji": "🏛️", "type": "Heritage/Commerce", "why_special": "Chennai's oldest commercial district with colonial-era architecture — a living museum of mercantile history", "tip": "Explore the narrow lanes behind NSC Bose Road — the spice traders' warehouses are 150 years old"},
+        ],
+        "Jaipur": [
+            {"name": "Panna Meena Ka Kund", "emoji": "🔷", "type": "Heritage", "why_special": "A 16th-century stepwell with a perfect geometrical staircase — eerily empty despite being near Amer Fort", "tip": "Visit at 8 AM — you'll likely have it entirely to yourself for dramatic photos"},
+            {"name": "Galta Ji (Monkey Temple)", "emoji": "🐒", "type": "Temple/Nature", "why_special": "An ancient temple complex in a mountain gorge with natural spring pools — far more atmospheric than Amer", "tip": "Go early morning, dress modestly — the views from the hilltop are better than Nahargarh"},
+            {"name": "Bapu Bazaar at Night", "emoji": "🌙", "type": "Shopping/Culture", "why_special": "Jaipur's local textile market lit up at night — where Jaipuris actually shop, not tourists", "tip": "Go after 7 PM — prices are 30-40% lower than Johari Bazaar and the selection is better"},
+        ],
+    }
+    default_gems = [
+        {"name": f"{dest} Old Quarter Back Lanes", "emoji": "🏘️", "type": "Heritage", "why_special": f"The historic lanes behind {dest}'s main bazaar area where locals live and trade — rarely on tourist maps", "tip": "Hire a local guide for ₹200-300 to navigate properly"},
+        {"name": f"{dest} Riverside/Lakeside at Dawn", "emoji": "🌅", "type": "Nature", "why_special": "The local waterfront at sunrise when the city's daily rituals begin — a photographer's paradise", "tip": "Arrive 30 minutes before sunrise for the best light"},
+        {"name": f"Local Morning Market in {dest}", "emoji": "🛒", "type": "Culture", "why_special": "Where locals buy fresh produce, flowers, and street food at 6 AM — the real heartbeat of the city", "tip": "Best visited 6-8 AM before the heat sets in"},
+    ]
+    return city_gems.get(dest, default_gems)
+
+
+def _mock_local_experiences(analysis):
+    dest = analysis.get("destination", "Goa")
+    trip_type = analysis.get("trip_type", "leisure")
+    
+    base = [
+        {"experience": f"Sunrise Photography Walk in {dest}", "emoji": "📸", "description": f"Join local photographers for a guided sunrise walk through {dest}'s most photogenic spots — the light transforms the city", "best_for": "solo"},
+        {"experience": "Local Cooking Class", "emoji": "👨‍🍳", "description": f"Learn to cook 3-4 authentic {dest} dishes in a local home — includes a market visit to source ingredients", "best_for": "couple"},
+        {"experience": "Rickshaw Food Tour", "emoji": "🛺", "description": f"A 3-hour auto-rickshaw tour of {dest}'s best street food stalls — guided by a local food blogger", "best_for": "group"},
+        {"experience": f"{dest} Heritage Walk", "emoji": "🚶", "description": f"A 2-hour walking tour through the historic core of {dest} with a certified local guide covering architecture, history and stories", "best_for": "family"},
+        {"experience": "Village Day Trip", "emoji": "🌾", "description": f"Hire a local driver for a day to visit a nearby traditional village within 30km of {dest} — see rural life unchanged for centuries", "best_for": "family"},
+    ]
+    
+    if trip_type == "romantic":
+        base.insert(0, {"experience": "Sunset Boat Cruise", "emoji": "🚢", "description": f"A private sunset cruise along {dest}'s waterway with dinner — the most romantic experience the city offers", "best_for": "couple"})
+    elif trip_type == "adventure":
+        base.insert(0, {"experience": "Early Morning Trek", "emoji": "🥾", "description": f"A pre-dawn trek to the highest viewpoint near {dest} — reaching the top at sunrise is one of life's great experiences", "best_for": "group"})
+    
+    return base[:5]
+
+
+def _mock_travel_tips(analysis):
+    dest = analysis.get("destination", "Goa")
+    season = analysis.get("season", "winter")
+    budget = analysis.get("budget", "medium")
+    
+    return [
+        f"Use Ola/Uber for inter-city travel in {dest} — auto-rickshaws often quote tourist prices; always ask for meter or use apps",
+        f"Dress modestly when visiting temples and religious sites in {dest} — carry a scarf or dupatta to cover shoulders",
+        f"Book train tickets via IRCTC app 60-90 days in advance — Tatkal quota opens 1 day before at 10 AM and sells in minutes",
+        f"Carry a water bottle and stay hydrated — tap water in {dest} is not safe to drink; buy 1L bottles from general stores, not tourist shops",
+        f"Learn 5-10 words of the local language — even 'dhanyavaad' (thank you) or 'kitna hua' (how much) gets a very warm response",
+        f"Beware of gem stone shops and 'government-approved' stores near tourist sites — these are almost always tourist traps with 500% markups",
+        f"In {dest}, pay entry fees only at official government-staffed counters — touts outside monuments often sell unofficial tickets at double the price",
     ]
 
 
@@ -918,6 +1139,11 @@ if step == 1:
                     st.session_state.packing_list = master_data.get("packing_list", {})
                     st.session_state.budget_breakdown = master_data.get("budget_breakdown", {})
                     st.session_state._savings_tips = master_data.get("savings_tips", [])
+                    # New TravelGPT Elite fields
+                    st.session_state.local_foods = master_data.get("local_foods", [])
+                    st.session_state.hidden_gems = master_data.get("hidden_gems", [])
+                    st.session_state.local_experiences = master_data.get("local_experiences", [])
+                    st.session_state.travel_tips = master_data.get("travel_tips", [])
                 else:
                     # Fallback: mock data with city-specific content
                     analysis = _mock_analysis(tour_input)
@@ -930,6 +1156,10 @@ if step == 1:
                     st.session_state.itinerary = _mock_itinerary(analysis)
                     st.session_state.packing_list = _mock_packing(analysis)
                     st.session_state._savings_tips = _mock_savings_tips(analysis)
+                    st.session_state.local_foods = _mock_local_foods(dest)
+                    st.session_state.hidden_gems = _mock_hidden_gems(dest)
+                    st.session_state.local_experiences = _mock_local_experiences(analysis)
+                    st.session_state.travel_tips = _mock_travel_tips(analysis)
                     # Budget breakdown computed after transport selection — defer
                     st.session_state.budget_breakdown = {}
 
@@ -1022,9 +1252,98 @@ elif step == 2:
   <div class="attract-name">{a.get("name","")}</div>
   <div class="attract-rating">{"★" * int(a.get("rating",4))} {a.get("rating","4.0")}</div>
   <div class="attract-dist">📍 {a.get("distance_km",0)} km &nbsp;|&nbsp; {a.get("entry_fee","Free")}</div>
-  <div style="font-size:0.72rem;color:#7070a0;margin-top:0.4rem;line-height:1.4;">{a.get("tip","")}</div>
+  <div style="font-size:0.72rem;color:#7070a0;margin-top:0.4rem;line-height:1.4;">{a.get("description") or a.get("tip","")}</div>
+  <div style="font-size:0.7rem;color:#00d4aa;margin-top:0.3rem;line-height:1.3;font-style:italic;">{("💡 " + a["tip"]) if a.get("description") and a.get("tip") else ""}</div>
 </div>""", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Trip Highlight Banner ──
+    highlight = analysis.get("trip_highlight", "")
+    if highlight:
+        st.markdown(f"""
+<div style="background:linear-gradient(135deg,rgba(255,107,157,0.1),rgba(124,107,255,0.1));border:1px solid rgba(255,107,157,0.25);border-radius:14px;padding:1rem 1.4rem;margin-bottom:1.2rem;display:flex;align-items:center;gap:0.8rem;">
+  <span style="font-size:1.4rem;">✨</span>
+  <div>
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:0.68rem;letter-spacing:0.12em;text-transform:uppercase;color:#ff6b9d;margin-bottom:0.25rem;">Trip Highlight</div>
+    <div style="font-size:0.9rem;color:#e8e8f0;font-weight:500;">{highlight}</div>
+  </div>
+</div>""", unsafe_allow_html=True)
+
+    # ── Local Foods ──
+    local_foods = st.session_state.local_foods
+    if local_foods:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">🍛 Must-Try Food in {analysis.get("destination","")}</div>', unsafe_allow_html=True)
+        food_cols = st.columns(2)
+        for i, food in enumerate(local_foods):
+            with food_cols[i % 2]:
+                st.markdown(f"""
+<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1rem;margin-bottom:0.8rem;transition:all 0.3s;">
+  <div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.5rem;">
+    <span style="font-size:1.5rem;">{food.get("emoji","🍛")}</span>
+    <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:0.9rem;">{food.get("name","")}</div>
+  </div>
+  <div style="font-size:0.8rem;color:#a0a0c0;margin-bottom:0.4rem;line-height:1.5;">{food.get("description","")}</div>
+  <div style="font-size:0.75rem;color:#ffd166;margin-bottom:0.35rem;">⭐ {food.get("why_famous","")}</div>
+  <div style="font-size:0.72rem;color:#00d4aa;">📍 {food.get("where_to_try","")}</div>
+</div>""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Hidden Gems + Local Experiences (side by side) ──
+    hidden_gems = st.session_state.hidden_gems
+    local_experiences = st.session_state.local_experiences
+    if hidden_gems or local_experiences:
+        gem_col, exp_col = st.columns(2)
+        with gem_col:
+            if hidden_gems:
+                st.markdown('<div class="glass-card" style="height:100%">', unsafe_allow_html=True)
+                st.markdown(f'<div class="section-title">💎 Hidden Gems</div>', unsafe_allow_html=True)
+                for gem in hidden_gems:
+                    st.markdown(f"""
+<div style="background:var(--surface);border:1px solid rgba(124,107,255,0.2);border-radius:10px;padding:0.85rem;margin-bottom:0.7rem;">
+  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
+    <span style="font-size:1.2rem;">{gem.get("emoji","💎")}</span>
+    <div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:0.85rem;">{gem.get("name","")}</div>
+      <div style="font-size:0.65rem;color:#7c6bff;text-transform:uppercase;letter-spacing:0.08em;">{gem.get("type","")}</div>
+    </div>
+  </div>
+  <div style="font-size:0.78rem;color:#a0a0c0;margin-bottom:0.35rem;line-height:1.4;">{gem.get("why_special","")}</div>
+  <div style="font-size:0.72rem;color:#00d4aa;">💡 {gem.get("tip","")}</div>
+</div>""", unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+        with exp_col:
+            if local_experiences:
+                st.markdown('<div class="glass-card" style="height:100%">', unsafe_allow_html=True)
+                st.markdown(f'<div class="section-title">🎭 Local Experiences</div>', unsafe_allow_html=True)
+                for exp in local_experiences:
+                    best_for_color = {"couple": "#ff6b9d", "solo": "#7c6bff", "family": "#ffd166", "group": "#00d4aa"}.get(exp.get("best_for",""), "#7070a0")
+                    st.markdown(f"""
+<div style="background:var(--surface);border:1px solid rgba(255,107,157,0.15);border-radius:10px;padding:0.85rem;margin-bottom:0.7rem;">
+  <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.35rem;">
+    <span style="font-size:1.2rem;">{exp.get("emoji","🎭")}</span>
+    <div style="font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:0.85rem;">{exp.get("experience","")}</div>
+  </div>
+  <div style="font-size:0.78rem;color:#a0a0c0;margin-bottom:0.35rem;line-height:1.4;">{exp.get("description","")}</div>
+  <div style="display:inline-block;background:rgba(255,255,255,0.05);border-radius:20px;padding:0.15rem 0.6rem;font-size:0.65rem;color:{best_for_color};font-family:'Space Grotesk';">Best for {exp.get("best_for","all")}</div>
+</div>""", unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+    # ── Travel Tips ──
+    travel_tips = st.session_state.travel_tips
+    if travel_tips:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">🧭 Travel Tips for {analysis.get("destination","")}</div>', unsafe_allow_html=True)
+        tip_icons = ["🚗", "🙏", "💳", "🔒", "🌦️", "🤝", "⚠️"]
+        for idx, tip in enumerate(travel_tips):
+            icon = tip_icons[idx % len(tip_icons)]
+            st.markdown(f"""
+<div style="display:flex;align-items:flex-start;gap:0.7rem;padding:0.6rem 0.8rem;border-radius:8px;margin-bottom:0.4rem;background:rgba(124,107,255,0.04);border-left:3px solid rgba(124,107,255,0.3);">
+  <span style="font-size:1rem;margin-top:0.05rem;">{icon}</span>
+  <span style="font-size:0.83rem;color:#c0c0d8;line-height:1.5;">{tip}</span>
+</div>""", unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
@@ -1314,6 +1633,23 @@ elif step == 5:
   <div style="font-family:'Space Grotesk';font-size:1.4rem;font-weight:700;color:#00d4aa;">₹{total_budget:,}</div>
   <div style="font-size:0.78rem;color:#7070a0;">{days} days · {pax} traveler(s) · {analysis.get("budget","medium")} budget</div>
 </div>""", unsafe_allow_html=True)
+
+    # ── Travel Tips recap on itinerary page ──
+    travel_tips = st.session_state.travel_tips
+    if travel_tips:
+        st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+        st.markdown(f'<div class="section-title">🧭 Before You Go — Travel Tips</div>', unsafe_allow_html=True)
+        tip_icons = ["🚗", "🙏", "💳", "🔒", "🌦️", "🤝", "⚠️"]
+        tip_cols = st.columns(2)
+        for idx, tip in enumerate(travel_tips):
+            with tip_cols[idx % 2]:
+                icon = tip_icons[idx % len(tip_icons)]
+                st.markdown(f"""
+<div style="display:flex;align-items:flex-start;gap:0.6rem;padding:0.55rem 0.7rem;border-radius:8px;margin-bottom:0.4rem;background:rgba(124,107,255,0.04);border-left:3px solid rgba(124,107,255,0.3);">
+  <span style="font-size:0.95rem;margin-top:0.05rem;">{icon}</span>
+  <span style="font-size:0.8rem;color:#c0c0d8;line-height:1.5;">{tip}</span>
+</div>""", unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
     with col1:
