@@ -281,18 +281,34 @@ def get_llm():
         return None
 
 
-def call_groq_json(system_prompt: str, user_prompt: str):
-    """Direct Groq API call that returns parsed JSON (a dict) or None.
+def _extract_json_object(raw: str):
+    """Brace-match the {...} block out of the LLM's raw text, even if it
+    added markdown fences or stray prose around the JSON."""
+    raw = raw.strip()
+    raw = re.sub(r"^```(?:json)?", "", raw).strip()
+    raw = re.sub(r"```$", "", raw).strip()
 
-    Hardened against:
-      - missing GROQ_API_KEY
-      - network / HTTP errors
-      - unexpected response shape from the Groq API
-      - invalid JSON returned by the LLM
-      - the LLM returning valid JSON that isn't a dict (e.g. a string or list)
-    None of these raise — they all return None so the caller can safely
-    fall back to mock data.
-    """
+    start = raw.find("{")
+    if start == -1:
+        return None
+
+    depth = 0
+    for i in range(start, len(raw)):
+        if raw[i] == "{":
+            depth += 1
+        elif raw[i] == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = raw[start:i + 1]
+                try:
+                    return json.loads(candidate)
+                except json.JSONDecodeError:
+                    return None
+    return None
+
+
+def call_groq_json(system_prompt: str, user_prompt: str):
+    """Direct Groq API call. Always returns a dict, or None if anything fails."""
     key = st.session_state.get("groq_key", "").strip()
     if not key:
         return None
@@ -316,7 +332,7 @@ def call_groq_json(system_prompt: str, user_prompt: str):
         resp.raise_for_status()
     except requests.exceptions.HTTPError:
         status = resp.status_code if resp is not None else "unknown"
-        body = resp.text[:200] if resp is not None else ""
+        body = resp.text[:300] if resp is not None else ""
         st.error(f"Groq API error {status}: {body}")
         return None
     except requests.exceptions.RequestException as e:
@@ -327,25 +343,30 @@ def call_groq_json(system_prompt: str, user_prompt: str):
         return None
 
     try:
-        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        raw = resp.json()["choices"][0]["message"]["content"]
     except (KeyError, IndexError, ValueError, TypeError, AttributeError) as e:
-        st.error(f"Unexpected Groq response format: {e}")
+        st.error(f"Unexpected Groq response shape: {e}")
         return None
 
-    # Strip markdown fences if present
-    raw = re.sub(r"^```(?:json)?", "", raw).strip()
-    raw = re.sub(r"```$", "", raw).strip()
+    if raw is None:
+        st.error("Groq returned an empty response.")
+        return None
+    if not isinstance(raw, str):
+        raw = str(raw)
 
-    try:
-        parsed = json.loads(raw)
-    except json.JSONDecodeError as e:
-        st.error(f"JSON parse error — model returned invalid JSON: {str(e)[:120]}")
+    parsed = _extract_json_object(raw)
+    if parsed is None:
+        st.error("AI did not return valid JSON — using fallback data for this run.")
         return None
 
-    # The model must return a JSON object. A bare string, list, number, etc.
-    # is treated as invalid so downstream code never has to guard against it.
+    if isinstance(parsed, str):
+        try:
+            parsed = json.loads(parsed)
+        except json.JSONDecodeError:
+            return None
+
     if not isinstance(parsed, dict):
-        st.error("AI returned an unexpected response format (not a JSON object). Falling back to demo data.")
+        st.error("AI response was not a JSON object — using fallback data for this run.")
         return None
 
     return parsed
@@ -617,42 +638,32 @@ VALIDATION: Before returning, verify every attraction and food recommendation be
 
 
 def analyze_trip_master(description: str) -> dict:
-    """
-    Single direct Groq API call using the user's free-text trip description.
-    The LLM parses origin/destination/dates/travelers/etc. directly out of
-    `description` (per MASTER_SYSTEM_PROMPT / build_master_prompt) — there's
-    no need to pre-parse structured fields before calling this function.
-
-    Always returns a dict:
-      - the parsed AI response (trip_summary, weather, attractions, ...) on success
-      - {} on ANY failure (missing API key, empty description, network error,
-        invalid JSON, wrong response type, unexpected exception, etc.)
-
-    Returning {} instead of raising means the call site's
-        if master_data:
-            ... use AI data ...
-        else:
-            ... use mock data ...
-    pattern keeps working correctly and the app never crashes here.
-    """
-    key = st.session_state.get("groq_key", "").strip()
-    if not key:
-        return {}
-
-    if not description or not isinstance(description, str) or not description.strip():
-        return {}
-
+    """Always returns a dict — {} on any failure — so `if master_data:` at
+    the call site correctly falls back to mock data without crashing."""
     try:
+        key = st.session_state.get("groq_key", "").strip()
+        if not key:
+            return {}
+        if not description or not isinstance(description, str) or not description.strip():
+            return {}
+
         user_prompt = build_master_prompt(description)
         result = call_groq_json(MASTER_SYSTEM_PROMPT, user_prompt)
+
+        if result is None:
+            return {}
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError:
+                return {}
+        if not isinstance(result, dict):
+            return {}
+
+        return result
     except Exception as e:
-        st.error(f"AI analysis failed unexpectedly — using demo data instead. ({e})")
+        st.error(f"AI analysis failed unexpectedly: {e}")
         return {}
-
-    if not isinstance(result, dict):
-        return {}
-
-    return result
 
 
 def extract_analysis(master_data: dict) -> dict:
