@@ -9,7 +9,7 @@ import plotly.express as px
 
 # Optional AI imports — gracefully degrade if missing
 try:
-    from langchain_google_genai import ChatGoogleGenerativeAI
+    from langchain_groq import ChatGroq
     from langchain_core.messages import HumanMessage, SystemMessage
     from langchain_core.prompts import ChatPromptTemplate
     LANGCHAIN_AVAILABLE = True
@@ -240,7 +240,8 @@ def init_state():
         "travel_tips": [],
         "booked": False,
         "pnr": None,
-        "gemini_key": "",
+        "groq_key": "",
+        "use_live_weather": False,
         "extra_budget": 0,
     }
     for k, v in defaults.items():
@@ -254,10 +255,14 @@ init_state()
 def get_llm():
     if not LANGCHAIN_AVAILABLE:
         return None
-    key = st.session_state.get("gemini_key", "").strip()
+    key = st.session_state.get("groq_key", "").strip()
     if not key:
         return None
-    return ChatGoogleGenerativeAI(model="gemini-1.5-flash", google_api_key=key, temperature=0.7)
+    return ChatGroq(
+        model="llama-3.3-70b-versatile",
+        groq_api_key=key,
+        temperature=0.7
+    )
 
 
 def _llm_json(system_msg, user_content):
@@ -278,7 +283,7 @@ def _llm_json(system_msg, user_content):
 
 
 # ─── MASTER AI INTELLIGENCE ENGINE ────────────────────────────────────────────
-# Single comprehensive Gemini call for all destination-specific data.
+# Single comprehensive Groq/Llama call for all destination-specific data.
 # Replaces scattered mock functions with one accurate, verified AI response.
 
 MASTER_SYSTEM_PROMPT = """You are TravelGPT Elite operating as VoyageAI — an advanced AI travel planner, local destination expert, weather-aware travel advisor, itinerary designer, food guide, and budget consultant for Indian travel.
@@ -561,7 +566,7 @@ def analyze_trip_master(description: str):
         data = json.loads(text)
         return data
     except Exception as e:
-        st.warning(f"AI call failed, using demo data. Error: {str(e)[:80]}")
+        st.error(f"AI ERROR: {e}")
         return None
 
 
@@ -590,17 +595,65 @@ def extract_analysis(master_data: dict) -> dict:
 # ─── MOCK DATA (fallback when no API key) ─────────────────────────────────────
 def _mock_analysis(desc):
     words = desc.lower()
-    cities = ["Mumbai", "Delhi", "Kolkata", "Bengaluru", "Chennai", "Hyderabad", "Jaipur", "Goa", "Kerala", "Manali", "Shimla", "Varanasi", "Agra", "Pune"]
+    # Destination detection
+    cities = ["Mumbai", "Delhi", "Kolkata", "Bengaluru", "Chennai", "Hyderabad",
+              "Jaipur", "Goa", "Kerala", "Manali", "Shimla", "Varanasi", "Agra", "Pune"]
     dest = next((c for c in cities if c.lower() in words), "Goa")
+
+    # Origin detection
+    origin_cities = ["Mumbai", "Delhi", "Kolkata", "Bengaluru", "Bangalore", "Chennai",
+                     "Hyderabad", "Jaipur", "Pune", "Ahmedabad", "Surat", "Lucknow"]
+    origin = next((c for c in origin_cities if c.lower() in words), "Unknown")
+    # Avoid origin == destination
+    if origin.lower() == dest.lower():
+        origin = "Unknown"
+
+    # Duration detection
+    dur_match = re.search(r"(\d+)\s*day", words)
+    duration = int(dur_match.group(1)) if dur_match else 5
+
+    # Traveler count detection
+    pax_match = re.search(r"(\d+)\s*(person|people|traveler|friend|couple|family)", words)
+    travelers = int(pax_match.group(1)) if pax_match else (2 if "partner" in words or "girlfriend" in words or "wife" in words or "couple" in words else 1)
+
+    # Budget detection
+    budget = "high" if any(w in words for w in ["luxury", "5 star", "five star", "high budget"]) \
+        else "low" if any(w in words for w in ["budget", "cheap", "backpack", "low cost"]) \
+        else "medium"
+
+    # Trip type detection
+    trip_type = "romantic" if any(w in words for w in ["partner", "girlfriend", "boyfriend", "wife", "husband", "romantic", "honeymoon"]) \
+        else "family" if "family" in words \
+        else "adventure" if any(w in words for w in ["adventure", "trek", "hiking", "camping"]) \
+        else "solo" if "solo" in words \
+        else "cultural" if any(w in words for w in ["culture", "heritage", "temple", "history"]) \
+        else "leisure"
+
+    # Season from travel month keywords or current month
+    month_now = datetime.now().month
+    season = "winter" if month_now in [11, 12, 1, 2] \
+        else "summer" if month_now in [3, 4, 5] \
+        else "monsoon" if month_now in [6, 7, 8, 9] \
+        else "spring"
+
     return {
-        "origin": "Kolkata", "destination": dest,
+        "origin": origin,
+        "destination": dest,
         "travel_date": (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%d"),
-        "return_date": (datetime.now() + timedelta(days=12)).strftime("%Y-%m-%d"),
-        "duration_days": 5, "travelers": 2, "budget": "medium",
-        "interests": ["sightseeing", "food", "culture", "beaches"],
-        "summary": f"An exciting 5-day trip from Kolkata to {dest} for 2 travelers, blending culture, cuisine, and memorable experiences.",
-        "tips": ["Book tickets in advance during peak season", "Carry local currency for small vendors", "Try authentic local street food"],
-        "season": "winter", "trip_type": "romantic"
+        "return_date": (datetime.now() + timedelta(days=7 + duration)).strftime("%Y-%m-%d"),
+        "duration_days": duration,
+        "travelers": travelers,
+        "budget": budget,
+        "interests": ["sightseeing", "food", "culture"],
+        "summary": f"A {duration}-day trip from {origin} to {dest} for {travelers} traveler(s), exploring local culture, food, and iconic sights.",
+        "trip_highlight": f"{dest} is best experienced through its local food, historic landmarks, and authentic neighbourhood life.",
+        "tips": [
+            "Book transport tickets at least 2 weeks in advance",
+            "Carry local currency for street vendors and small shops",
+            "Try regional street food for the most authentic experience",
+        ],
+        "season": season,
+        "trip_type": trip_type,
     }
 
 
@@ -1042,15 +1095,22 @@ st.markdown(html_steps, unsafe_allow_html=True)
 # ─── SIDEBAR ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
-    key_input = st.text_input("Gemini API Key", type="password",
-        value=st.session_state.gemini_key,
-        help="Get free key at aistudio.google.com/app/apikey")
-    if key_input:
-        st.session_state.gemini_key = key_input
-    if st.session_state.gemini_key:
-        st.success("✓ API key set — using Gemini AI for accurate, destination-specific data")
+
+    groq_key = st.text_input(
+        "Groq API Key",
+        type="password",
+        value=st.session_state.groq_key,
+        help="Get free key at console.groq.com — no credit card required"
+    )
+    if groq_key:
+        st.session_state.groq_key = groq_key
+
+    if st.session_state.groq_key:
+        st.success("✓ Groq AI enabled — llama-3.3-70b-versatile")
     else:
-        st.info("No key → Demo mode with curated sample data (Goa, Chennai, Jaipur fully detailed)")
+        st.warning("No key → Demo mode (add Groq key for live AI)")
+
+    st.checkbox("🌦️ Use Live Weather (coming soon)", key="use_live_weather", disabled=True)
 
     st.markdown("---")
     st.markdown("**🎯 Quick Trip Templates**")
@@ -1075,7 +1135,7 @@ with st.sidebar:
 
         if st.button("🔄 Start Over", use_container_width=True):
             for k in list(st.session_state.keys()):
-                if k != "gemini_key":
+                if k not in ("groq_key", "use_live_weather"):
                     del st.session_state[k]
             st.rerun()
 
@@ -1097,7 +1157,7 @@ if step == 1:
     with col2:
         analyze_btn = st.button("✦ Analyze Trip →", use_container_width=True)
     with col3:
-        st.markdown('<div style="font-size:0.72rem;color:#7070a0;padding-top:0.7rem;">Powered by Gemini AI</div>', unsafe_allow_html=True)
+        st.markdown('<div style="font-size:0.72rem;color:#7070a0;padding-top:0.7rem;">Powered by Groq + Llama 3.3</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -1735,6 +1795,6 @@ elif step == 6:
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("🌍 Plan Another Trip", use_container_width=True):
         for k in list(st.session_state.keys()):
-            if k != "gemini_key":
+            if k not in ("groq_key", "use_live_weather"):
                 del st.session_state[k]
         st.rerun()
