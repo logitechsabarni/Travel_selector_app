@@ -3,6 +3,7 @@ import json
 import re
 import time
 import random
+import requests
 from datetime import datetime, timedelta
 import plotly.graph_objects as go
 import plotly.express as px
@@ -10,8 +11,6 @@ import plotly.express as px
 # Optional AI imports — gracefully degrade if missing
 try:
     from langchain_groq import ChatGroq
-    from langchain_core.messages import HumanMessage, SystemMessage
-    from langchain_core.prompts import ChatPromptTemplate
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     LANGCHAIN_AVAILABLE = False
@@ -225,6 +224,16 @@ def init_state():
     defaults = {
         "step": 1,
         "tour_desc": "",
+        # Structured form fields
+        "form_origin": "",
+        "form_destination": "",
+        "form_days": 5,
+        "form_travelers": 2,
+        "form_budget": "Medium",
+        "form_trip_type": "Leisure",
+        "form_interests": [],
+        "form_travel_date": datetime.now().date() + timedelta(days=7),
+        # Results
         "ai_analysis": None,
         "transport_options": [],
         "selected_transport": None,
@@ -241,7 +250,7 @@ def init_state():
         "booked": False,
         "pnr": None,
         "groq_key": "",
-        "use_live_weather": False,
+        "use_live_weather": True,
         "extra_budget": 0,
     }
     for k, v in defaults.items():
@@ -265,20 +274,40 @@ def get_llm():
     )
 
 
-def _llm_json(system_msg, user_content):
-    """Generic LLM call that returns parsed JSON or None."""
-    llm = get_llm()
-    if not llm:
+def call_groq_json(system_prompt: str, user_prompt: str):
+    """Direct Groq API call that returns parsed JSON or None."""
+    key = st.session_state.get("groq_key", "").strip()
+    if not key:
         return None
-    prompt = ChatPromptTemplate.from_messages([
-        SystemMessage(content=system_msg),
-        HumanMessage(content=user_content if isinstance(user_content, str) else json.dumps(user_content))
-    ])
     try:
-        result = (prompt | llm).invoke({})
-        text = re.sub(r"```json|```", "", result.content.strip()).strip()
-        return json.loads(text)
-    except Exception:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                "temperature": 0.7,
+                "max_tokens": 4096,
+            },
+            timeout=60,
+        )
+        resp.raise_for_status()
+        raw = resp.json()["choices"][0]["message"]["content"].strip()
+        # Strip markdown fences if present
+        raw = re.sub(r"^```(?:json)?", "", raw).strip()
+        raw = re.sub(r"```$", "", raw).strip()
+        return json.loads(raw)
+    except requests.exceptions.HTTPError as e:
+        st.error(f"Groq API error {resp.status_code}: {resp.text[:200]}")
+        return None
+    except json.JSONDecodeError as e:
+        st.error(f"JSON parse error — model returned invalid JSON: {str(e)[:120]}")
+        return None
+    except Exception as e:
+        st.error(f"AI ERROR: {e}")
         return None
 
 
@@ -547,27 +576,23 @@ QUANTITY REQUIREMENTS:
 VALIDATION: Before returning, verify every attraction and food recommendation belongs to the destination city."""
 
 
-def analyze_trip_master(description: str):
+def analyze_trip_master(origin: str, destination: str, travel_date: str,
+                        duration_days: int, travelers: int, budget: str,
+                        trip_type: str, interests: list, extra_desc: str = "") -> dict | None:
     """
-    Single master AI call that returns all trip data at once.
-    Falls back gracefully to mock data if no API key or call fails.
+    Single direct Groq API call with fully structured inputs.
+    Returns parsed JSON or None (triggers mock fallback).
     """
-    llm = get_llm()
-    if not llm:
-        return None  # Will trigger mock fallback
-
-    prompt = ChatPromptTemplate.from_messages([
-        SystemMessage(content=MASTER_SYSTEM_PROMPT),
-        HumanMessage(content=build_master_prompt(description))
-    ])
-    try:
-        result = (prompt | llm).invoke({})
-        text = re.sub(r"```json|```", "", result.content.strip()).strip()
-        data = json.loads(text)
-        return data
-    except Exception as e:
-        st.error(f"AI ERROR: {e}")
+    key = st.session_state.get("groq_key", "").strip()
+    if not key:
         return None
+
+    interests_str = ", ".join(interests) if interests else "sightseeing, food, culture"
+    user_prompt = build_master_prompt(
+        origin, destination, travel_date, duration_days,
+        travelers, budget, trip_type, interests_str, extra_desc
+    )
+    return call_groq_json(MASTER_SYSTEM_PROMPT, user_prompt)
 
 
 def extract_analysis(master_data: dict) -> dict:
